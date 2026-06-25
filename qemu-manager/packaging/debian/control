@@ -1,0 +1,16 @@
+Source: qemu-manager
+Section: virt
+Priority: optional
+Maintainer: QEMU Manager Contributors <qemu-manager@example.com>
+Build-Depends: debhelper-compat (= 13), meson, ninja-build, pkg-config, libgtk-4-dev
+Standards-Version: 4.6.0
+Homepage: https://github.com/YOUR_USERNAME/qemu-manager
+
+Package: qemu-manager
+Architecture: any
+Depends: ${shlibs:Depends}, ${misc:Depends}, qemu-utils
+Recommends: qemu-system-x86
+Description: QEMU virtual machine manager (no root, no libvirt)
+ A native GTK4 desktop application that manages QEMU virtual machines
+ by generating and launching QEMU commands directly. No root required,
+ no libvirt, no systemd dependency. Works in Termux + PRoot.

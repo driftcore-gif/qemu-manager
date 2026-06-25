@@ -1,0 +1,44 @@
+# Build directories
+build/
+builddir/
+_build/
+
+# Meson
+.mesonpy/
+meson-private/
+meson-logs/
+meson-info/
+
+# Compiled objects
+*.o
+*.so
+*.a
+*.la
+*.lo
+
+# Binaries
+qemu-manager
+qemu-manager.exe
+
+# Editor files
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+
+# Runtime files
+*.pid
+*.log
+monitor.sock
+
+# Package build artifacts
+packaging/debian/qemu-manager/
+packaging/debian/*.deb
+*.tar.gz
+*.tar.xz
+
+# Clangd
+compile_commands.json
+.cache/
