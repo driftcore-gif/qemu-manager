@@ -82,6 +82,10 @@ void VMSettingsDialog::populateFromVM() {
     
     gtk_editable_set_text(GTK_EDITABLE(extra_args_entry), vm_ref.extra_args.c_str());
     gtk_check_button_set_active(GTK_CHECK_BUTTON(save_script_check), vm_ref.save_script_to_vm_folder);
+    gtk_check_button_set_active(GTK_CHECK_BUTTON(kvm_cet_check), vm_ref.kvm_cet);
+    gtk_drop_down_set_selected(GTK_DROP_DOWN(conf_vm_combo), (guint)vm_ref.conf_vm);
+    gtk_check_button_set_active(GTK_CHECK_BUTTON(scsi_mq_check), vm_ref.scsi_multiqueue);
+    gtk_check_button_set_active(GTK_CHECK_BUTTON(riscv_iommu_check), vm_ref.riscv_iommu);
     
     if (vm_ref.binary_mode == BinaryMode::Custom) {
         gtk_editable_set_text(GTK_EDITABLE(custom_bin_entry), vm_ref.custom_binary.c_str());
@@ -247,10 +251,11 @@ void VMSettingsDialog::buildPages() {
         static const char* disp_names[] = {"SDL (recommended)","GTK","SPICE","VNC","EGL","Headless",nullptr};
         display_combo = gtk_drop_down_new_from_strings(disp_names);
         row("Display:", display_combo);
-        static const char* gpu_names[] = {"VGA","VirtIO GPU","QXL","Cirrus","VMware SVGA","None",nullptr};
+        static const char* gpu_names[] = {
+            "VGA (standard)","VirtIO GPU (2D)","VirtIO GPU GL (VirGL/OpenGL)","VirtIO GPU Rutabaga (Android)","VirtIO GPU NativeCtx (QEMU 11)","QXL (SPICE)","Cirrus","VMware SVGA","ramfb","None",nullptr};
         gpu_combo = gtk_drop_down_new_from_strings(gpu_names);
         row("GPU:", gpu_combo);
-        static const char* audio_names[] = {"Intel HDA","AC97","SB16","None",nullptr};
+        static const char* audio_names[] = {"Intel HDA","AC97","SB16","VirtIO Sound (QEMU 8+)","None",nullptr};
         audio_combo = gtk_drop_down_new_from_strings(audio_names);
         row("Audio:", audio_combo);
         add("Display", g);
@@ -357,7 +362,26 @@ void VMSettingsDialog::buildPages() {
         gtk_grid_attach(GTK_GRID(g), extra_args_entry, 1, r, 1, 1); r++;
         
         save_script_check = gtk_check_button_new_with_label("Save start.sh to VM folder");
-        gtk_grid_attach(GTK_GRID(g), save_script_check, 0, r, 2, 1);
+        gtk_grid_attach(GTK_GRID(g), save_script_check, 0, r, 2, 1); r++;
+
+        gtk_grid_attach(GTK_GRID(g), gtk_separator_new(GTK_ORIENTATION_HORIZONTAL), 0, r, 2, 1); r++;
+
+        // QEMU 11 security controls
+        kvm_cet_check = gtk_check_button_new_with_label("KVM CET (Intel Control-flow Enforcement Technology, QEMU 11)");
+        gtk_grid_attach(GTK_GRID(g), kvm_cet_check, 0, r, 2, 1); r++;
+
+        gtk_grid_attach(GTK_GRID(g), make_label("Confidential VM:"), 0, r, 1, 1);
+        static const char* cvm_names[] = {"None","SEV-SNP (AMD, QEMU 11 KVM)","TDX (Intel, QEMU 11 KVM)",nullptr};
+        conf_vm_combo = gtk_drop_down_new_from_strings(cvm_names);
+        gtk_widget_set_hexpand(conf_vm_combo, TRUE);
+        gtk_grid_attach(GTK_GRID(g), conf_vm_combo, 1, r, 1, 1); r++;
+
+        scsi_mq_check = gtk_check_button_new_with_label("VirtIO-SCSI Multiqueue (one I/O thread per vCPU, QEMU 10)");
+        gtk_grid_attach(GTK_GRID(g), scsi_mq_check, 0, r, 2, 1); r++;
+
+        riscv_iommu_check = gtk_check_button_new_with_label("RISC-V IOMMU sys device (riscv-iommu-sys, QEMU 11)");
+        gtk_grid_attach(GTK_GRID(g), riscv_iommu_check, 0, r, 2, 1);
+
         add("Hardware", g);
     }
     
@@ -457,7 +481,11 @@ VMConfig VMSettingsDialog::collectConfig() {
     
     c.extra_args = gtk_editable_get_text(GTK_EDITABLE(extra_args_entry));
     c.save_script_to_vm_folder = gtk_check_button_get_active(GTK_CHECK_BUTTON(save_script_check));
-    
+    c.kvm_cet = gtk_check_button_get_active(GTK_CHECK_BUTTON(kvm_cet_check));
+    c.conf_vm = (ConfidentialVM)gtk_drop_down_get_selected(GTK_DROP_DOWN(conf_vm_combo));
+    c.scsi_multiqueue = gtk_check_button_get_active(GTK_CHECK_BUTTON(scsi_mq_check));
+    c.riscv_iommu = gtk_check_button_get_active(GTK_CHECK_BUTTON(riscv_iommu_check));
+
     // Preserve vm_dir and disk_path
     c.vm_dir = vm_ref.vm_dir;
     const char* exts[] = {"qcow2","raw","vmdk","vdi"};

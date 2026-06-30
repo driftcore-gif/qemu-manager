@@ -94,6 +94,7 @@ private:
     GtkWidget* net_combo;
     // Hardware
     GtkWidget* bin_combo, *custom_bin_entry, *bin_hint_lbl, *accel_combo, *lbt_note_lbl, *extra_args_entry, *save_script_check;
+    GtkWidget* kvm_cet_check = nullptr, *conf_vm_combo = nullptr, *scsi_mq_check = nullptr, *riscv_iommu_check = nullptr;
     // Preview
     GtkWidget* cmd_preview;
     
