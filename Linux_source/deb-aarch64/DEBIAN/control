@@ -1,0 +1,11 @@
+Package: qemu-manager
+Version: 7.0-1
+Architecture: arm64
+Maintainer: Jishan Shaikh <jishan@qemumanager.org>
+Description: QEMU Manager - GUI for managing QEMU virtual machines
+ A lightweight GTK4 frontend for QEMU that supports 35 architectures,
+ per-VM accelerator selection (TCG/KVM/KVM+LBT), custom binary selection,
+ and in-memory execution for PRoot/Termux compatibility.
+Depends: libgtk-4-1, libglib2.0-0
+Section: admin
+Priority: optional

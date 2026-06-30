@@ -1,0 +1,54 @@
+<?xml version="1.0" encoding="utf-8"?>
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="128"
+    android:viewportHeight="128">
+    
+    <!-- Background -->
+    <path android:fillColor="#2563eb"
+        android:pathData="M24,0 L104,0 A24,24 0 0 1 128,24 L128,104 A24,24 0 0 1 104,128 L24,128 A24,24 0 0 1 0,104 L0,24 A24,24 0 0 1 24,0 Z"/>
+    
+    <!-- Wings -->
+    <path android:fillColor="#e2e8f0"
+        android:pathData="M37,48 a12,24 0 1 0 0,48 a12,24 0 1 0 0,-48"/>
+    <path android:fillColor="#e2e8f0"
+        android:pathData="M91,48 a12,24 0 1 0 0,48 a12,24 0 1 0 0,-48"/>
+    
+    <!-- Body -->
+    <path android:fillColor="#f8fafc"
+        android:pathData="M64,36 a32,36 0 1 0 0,72 a32,36 0 1 0 0,-72"/>
+    
+    <!-- Head -->
+    <path android:fillColor="#f8fafc"
+        android:pathData="M64,22 a22,22 0 1 0 0,44 a22,22 0 1 0 0,-44"/>
+    
+    <!-- Left eye -->
+    <path android:fillColor="#1e293b"
+        android:pathData="M55,34 a8,8 0 1 0 0,16 a8,8 0 1 0 0,-16"/>
+    <!-- Right eye -->
+    <path android:fillColor="#1e293b"
+        android:pathData="M73,34 a8,8 0 1 0 0,16 a8,8 0 1 0 0,-16"/>
+    
+    <!-- Eye highlights -->
+    <path android:fillColor="#f8fafc"
+        android:pathData="M54,33 a3,3 0 1 0 0,6 a3,3 0 1 0 0,-6"/>
+    <path android:fillColor="#f8fafc"
+        android:pathData="M72,33 a3,3 0 1 0 0,6 a3,3 0 1 0 0,-6"/>
+    
+    <!-- Beak -->
+    <path android:fillColor="#fbbf24"
+        android:pathData="M64,50 L57,59 L71,59 Z"/>
+    
+    <!-- VM Monitor body -->
+    <path android:fillColor="#1e40af"
+        android:pathData="M48,62 L80,62 A4,4 0 0 1 84,66 L84,86 A4,4 0 0 1 80,90 L48,90 A4,4 0 0 1 44,86 L44,66 A4,4 0 0 1 48,62 Z"/>
+    
+    <!-- VM Monitor screen -->
+    <path android:fillColor="#60a5fa"
+        android:pathData="M51,65 L77,65 A2,2 0 0 1 79,67 L79,83 A2,2 0 0 1 77,85 L51,85 A2,2 0 0 1 49,83 L49,67 A2,2 0 0 1 51,65 Z"/>
+    
+    <!-- Monitor stand -->
+    <path android:fillColor="#1e40af"
+        android:pathData="M57,90 L71,90 L69,94 L59,94 Z"/>
+</vector>

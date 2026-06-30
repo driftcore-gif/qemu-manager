@@ -1,0 +1,51 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string-array name="arch_names">
+        <item>x86_64</item><item>i386</item>
+        <item>aarch64</item><item>arm</item><item>armeb</item>
+        <item>riscv64</item><item>riscv32</item>
+        <item>mips</item><item>mipsel</item><item>mips64</item><item>mips64el</item>
+        <item>mipsn32</item><item>mipsn32el</item>
+        <item>ppc</item><item>ppc64</item><item>ppc64le</item>
+        <item>sparc</item><item>sparc64</item><item>sparc32plus</item>
+        <item>alpha</item><item>hppa</item><item>m68k</item>
+        <item>microblaze</item><item>microblazeel</item>
+        <item>or1k</item><item>loongarch64</item><item>s390x</item>
+        <item>sh4</item><item>sh4eb</item>
+        <item>xtensa</item><item>xtensaeb</item>
+        <item>tricore</item><item>rx</item><item>avr</item><item>hexagon</item>
+    </string-array>
+    <string-array name="vm_modes">
+        <item>System (softmmu)</item>
+        <item>User mode (linux-user)</item>
+    </string-array>
+    <string-array name="machine_types">
+        <item>q35</item><item>pc</item><item>virt</item><item>microvm</item><item>custom</item>
+    </string-array>
+    <string-array name="disk_formats">
+        <item>qcow2</item><item>raw</item><item>vmdk</item><item>vdi</item>
+    </string-array>
+    <string-array name="boot_orders">
+        <item>cd (CD first)</item><item>dc (Disk first)</item>
+        <item>c (Disk only)</item><item>d (CD only)</item>
+    </string-array>
+    <string-array name="display_types">
+        <item>SDL (recommended)</item><item>GTK</item><item>SPICE</item>
+        <item>VNC</item><item>EGL</item><item>Headless</item>
+    </string-array>
+    <string-array name="gpu_types">
+        <item>VGA</item><item>VirtIO GPU</item><item>QXL</item>
+        <item>Cirrus</item><item>VMware SVGA</item><item>None</item>
+    </string-array>
+    <string-array name="audio_types">
+        <item>Intel HDA</item><item>AC97</item><item>SB16</item><item>None</item>
+    </string-array>
+    <string-array name="net_modes">
+        <item>User (NAT — no root)</item><item>TAP</item><item>Bridge</item><item>Socket</item>
+    </string-array>
+    <string-array name="accel_types">
+        <item>TCG (software — works everywhere)</item>
+        <item>KVM (hardware — requires /dev/kvm)</item>
+        <item>KVM + LBT (LoongArch silicon translation)</item>
+    </string-array>
+</resources>

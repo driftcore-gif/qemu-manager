@@ -1,0 +1,215 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:orientation="vertical">
+
+    <ScrollView
+        android:layout_width="match_parent"
+        android:layout_height="0dp"
+        android:layout_weight="1">
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="vertical"
+            android:padding="16dp">
+
+            <!-- GENERAL -->
+            <TextView android:layout_width="wrap_content" android:layout_height="wrap_content"
+                android:text="General" android:textStyle="bold" android:textSize="16sp"
+                android:layout_marginBottom="8dp"/>
+            <EditText android:id="@+id/et_name" android:layout_width="match_parent"
+                android:layout_height="wrap_content" android:hint="VM Name *" />
+            <EditText android:id="@+id/et_desc" android:layout_width="match_parent"
+                android:layout_height="wrap_content" android:hint="Description" />
+            <TextView android:layout_width="wrap_content" android:layout_height="wrap_content"
+                android:text="Architecture" android:layout_marginTop="8dp"/>
+            <Spinner android:id="@+id/sp_arch" android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:entries="@array/arch_names"/>
+            <TextView android:layout_width="wrap_content" android:layout_height="wrap_content"
+                android:text="Mode" android:layout_marginTop="8dp"/>
+            <Spinner android:id="@+id/sp_mode" android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:entries="@array/vm_modes"/>
+            <TextView android:layout_width="wrap_content" android:layout_height="wrap_content"
+                android:text="Machine" android:layout_marginTop="8dp"/>
+            <Spinner android:id="@+id/sp_machine" android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:entries="@array/machine_types"/>
+            <EditText android:id="@+id/et_mach_custom" android:layout_width="match_parent"
+                android:layout_height="wrap_content" android:hint="Custom machine e.g. raspi3b"
+                android:visibility="gone"/>
+
+            <View android:layout_width="match_parent" android:layout_height="1dp"
+                android:background="#333" android:layout_marginVertical="12dp"/>
+
+            <!-- CPU -->
+            <TextView android:layout_width="wrap_content" android:layout_height="wrap_content"
+                android:text="CPU" android:textStyle="bold" android:textSize="16sp"
+                android:layout_marginBottom="8dp"/>
+            <EditText android:id="@+id/et_cpu" android:layout_width="match_parent"
+                android:layout_height="wrap_content" android:hint="CPU Model (max, host, cortex-a53…)"
+                android:text="max"/>
+            <TextView android:id="@+id/tv_sockets" android:layout_width="wrap_content"
+                android:layout_height="wrap_content" android:text="Sockets: 1" android:layout_marginTop="8dp"/>
+            <SeekBar android:id="@+id/sb_sockets" android:layout_width="match_parent"
+                android:layout_height="wrap_content" android:max="7"/>
+            <TextView android:id="@+id/tv_cores" android:layout_width="wrap_content"
+                android:layout_height="wrap_content" android:text="Cores: 2" android:layout_marginTop="8dp"/>
+            <SeekBar android:id="@+id/sb_cores" android:layout_width="match_parent"
+                android:layout_height="wrap_content" android:max="63"/>
+            <TextView android:id="@+id/tv_threads" android:layout_width="wrap_content"
+                android:layout_height="wrap_content" android:text="Threads: 2" android:layout_marginTop="8dp"/>
+            <SeekBar android:id="@+id/sb_threads" android:layout_width="match_parent"
+                android:layout_height="wrap_content" android:max="7"/>
+
+            <View android:layout_width="match_parent" android:layout_height="1dp"
+                android:background="#333" android:layout_marginVertical="12dp"/>
+
+            <!-- MEMORY -->
+            <TextView android:layout_width="wrap_content" android:layout_height="wrap_content"
+                android:text="Memory" android:textStyle="bold" android:textSize="16sp"
+                android:layout_marginBottom="8dp"/>
+            <TextView android:id="@+id/tv_ram" android:layout_width="wrap_content"
+                android:layout_height="wrap_content" android:text="RAM: 2048 MB"/>
+            <SeekBar android:id="@+id/sb_ram" android:layout_width="match_parent"
+                android:layout_height="wrap_content" android:max="9"/>
+            <CheckBox android:id="@+id/cb_balloon" android:layout_width="wrap_content"
+                android:layout_height="wrap_content" android:text="VirtIO Balloon"/>
+
+            <View android:layout_width="match_parent" android:layout_height="1dp"
+                android:background="#333" android:layout_marginVertical="12dp"/>
+
+            <!-- STORAGE -->
+            <TextView android:layout_width="wrap_content" android:layout_height="wrap_content"
+                android:text="Storage" android:textStyle="bold" android:textSize="16sp"
+                android:layout_marginBottom="8dp"/>
+            <EditText android:id="@+id/et_disk_size" android:layout_width="match_parent"
+                android:layout_height="wrap_content" android:hint="Disk Size (GB)"
+                android:inputType="number" android:text="20"/>
+            <Spinner android:id="@+id/sp_disk_fmt" android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:entries="@array/disk_formats"/>
+            <EditText android:id="@+id/et_iso" android:layout_width="match_parent"
+                android:layout_height="wrap_content" android:hint="ISO Path (optional)"/>
+
+            <View android:layout_width="match_parent" android:layout_height="1dp"
+                android:background="#333" android:layout_marginVertical="12dp"/>
+
+            <!-- BOOT -->
+            <TextView android:layout_width="wrap_content" android:layout_height="wrap_content"
+                android:text="Boot" android:textStyle="bold" android:textSize="16sp"
+                android:layout_marginBottom="8dp"/>
+            <CheckBox android:id="@+id/cb_uefi" android:layout_width="wrap_content"
+                android:layout_height="wrap_content" android:text="Enable UEFI (OVMF)"/>
+            <CheckBox android:id="@+id/cb_boot_menu" android:layout_width="wrap_content"
+                android:layout_height="wrap_content" android:text="Show Boot Menu"/>
+            <Spinner android:id="@+id/sp_boot" android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:entries="@array/boot_orders"/>
+
+            <View android:layout_width="match_parent" android:layout_height="1dp"
+                android:background="#333" android:layout_marginVertical="12dp"/>
+
+            <!-- DISPLAY -->
+            <TextView android:layout_width="wrap_content" android:layout_height="wrap_content"
+                android:text="Display" android:textStyle="bold" android:textSize="16sp"
+                android:layout_marginBottom="8dp"/>
+            <Spinner android:id="@+id/sp_display" android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:entries="@array/display_types"/>
+            <Spinner android:id="@+id/sp_gpu" android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:entries="@array/gpu_types"/>
+            <Spinner android:id="@+id/sp_audio" android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:entries="@array/audio_types"/>
+
+            <View android:layout_width="match_parent" android:layout_height="1dp"
+                android:background="#333" android:layout_marginVertical="12dp"/>
+
+            <!-- NETWORK -->
+            <TextView android:layout_width="wrap_content" android:layout_height="wrap_content"
+                android:text="Network" android:textStyle="bold" android:textSize="16sp"
+                android:layout_marginBottom="8dp"/>
+            <Spinner android:id="@+id/sp_net" android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:entries="@array/net_modes"/>
+
+            <View android:layout_width="match_parent" android:layout_height="1dp"
+                android:background="#333" android:layout_marginVertical="12dp"/>
+
+            <!-- HARDWARE: Binary + Accelerator + Extra Args -->
+            <TextView android:layout_width="wrap_content" android:layout_height="wrap_content"
+                android:text="Hardware" android:textStyle="bold" android:textSize="16sp"
+                android:layout_marginBottom="8dp"/>
+
+            <TextView android:layout_width="wrap_content" android:layout_height="wrap_content"
+                android:text="QEMU Binary" android:textStyle="bold" android:layout_marginTop="8dp"/>
+            <Spinner android:id="@+id/sp_binary" android:layout_width="match_parent"
+                android:layout_height="wrap_content"/>
+            <LinearLayout android:id="@+id/row_custom_bin"
+                android:layout_width="match_parent" android:layout_height="wrap_content"
+                android:orientation="vertical" android:visibility="gone">
+                <EditText android:id="@+id/et_custom_bin" android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:hint="e.g. qemu-system-mycpu  (name only, resolved automatically)"/>
+                <TextView android:id="@+id/tv_bin_hint" android:layout_width="wrap_content"
+                    android:layout_height="wrap_content" android:textColor="#FF5722"
+                    android:textSize="12sp"/>
+            </LinearLayout>
+
+            <TextView android:layout_width="wrap_content" android:layout_height="wrap_content"
+                android:text="Accelerator" android:textStyle="bold" android:layout_marginTop="12dp"/>
+            <Spinner android:id="@+id/sp_accel" android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:entries="@array/accel_types"/>
+            <TextView android:id="@+id/tv_lbt_note"
+                android:layout_width="match_parent" android:layout_height="wrap_content"
+                android:text="LoongArch LBT: silicon x86/MIPS/ARM binary translation. Requires LoongArch hardware with LBT + KVM kernel."
+                android:textColor="#4FC3F7" android:textSize="12sp"
+                android:visibility="gone" android:layout_marginTop="4dp"/>
+
+            <TextView android:layout_width="wrap_content" android:layout_height="wrap_content"
+                android:text="Extra Arguments (appended last)"
+                android:textStyle="bold" android:layout_marginTop="12dp"/>
+            <EditText android:id="@+id/et_extra_args" android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:hint="-device virtio-rng-pci   -no-reboot   -snapshot"/>
+            <CheckBox android:id="@+id/cb_save_script" android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="Save start.sh to VM folder"/>
+
+            <View android:layout_width="match_parent" android:layout_height="1dp"
+                android:background="#333" android:layout_marginVertical="12dp"/>
+
+            <!-- PREVIEW -->
+            <TextView android:layout_width="wrap_content" android:layout_height="wrap_content"
+                android:text="Command Preview" android:textStyle="bold" android:textSize="16sp"
+                android:layout_marginBottom="8dp"/>
+            <TextView android:id="@+id/tv_cmd_preview"
+                android:layout_width="match_parent" android:layout_height="wrap_content"
+                android:fontFamily="monospace" android:textSize="11sp"
+                android:padding="8dp" android:background="#0D1117"
+                android:textColor="#4FC3F7"/>
+
+        </LinearLayout>
+    </ScrollView>
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="horizontal"
+        android:padding="12dp"
+        android:gravity="end">
+        <Button android:id="@+id/btn_cancel_edit"
+            android:layout_width="wrap_content" android:layout_height="wrap_content"
+            android:text="Cancel" android:layout_marginEnd="8dp"/>
+        <Button android:id="@+id/btn_save"
+            android:layout_width="wrap_content" android:layout_height="wrap_content"
+            android:text="Save"/>
+    </LinearLayout>
+
+</LinearLayout>

@@ -1,0 +1,64 @@
+name: Build
+
+on:
+  push:
+    branches: [ main, develop ]
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  build-linux:
+    name: Build on Ubuntu (x86_64)
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            meson ninja-build pkg-config \
+            libgtk-4-dev \
+            gcc g++
+
+      - name: Setup build
+        run: meson setup build --buildtype=release
+
+      - name: Build
+        run: cd build && ninja
+
+      - name: Upload binary
+        uses: actions/upload-artifact@v4
+        with:
+          name: qemu-manager-linux-x86_64
+          path: build/qemu-manager
+
+  build-linux-arm64:
+    name: Build on Ubuntu (aarch64)
+    runs-on: ubuntu-24.04-arm
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            meson ninja-build pkg-config \
+            libgtk-4-dev \
+            gcc g++
+
+      - name: Setup build
+        run: meson setup build --buildtype=release
+
+      - name: Build
+        run: cd build && ninja
+
+      - name: Upload binary
+        uses: actions/upload-artifact@v4
+        with:
+          name: qemu-manager-linux-aarch64
+          path: build/qemu-manager

@@ -1,0 +1,103 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:orientation="vertical"
+    android:padding="16dp">
+
+    <!-- VM name + arch summary -->
+    <TextView android:id="@+id/tv_detail_name"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:textSize="20sp"
+        android:textStyle="bold"/>
+
+    <TextView android:id="@+id/tv_detail_arch"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:textSize="13sp"
+        android:textColor="#888"
+        android:layout_marginTop="2dp"
+        android:layout_marginBottom="20dp"/>
+
+    <!-- Code block label + buttons row -->
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="horizontal"
+        android:gravity="center_vertical"
+        android:layout_marginBottom="8dp">
+
+        <TextView
+            android:layout_width="0dp"
+            android:layout_weight="1"
+            android:layout_height="wrap_content"
+            android:text="QEMU Command"
+            android:textStyle="bold"
+            android:textSize="14sp"/>
+
+        <!-- Copy full command -->
+        <Button android:id="@+id/btn_copy_cmd"
+            android:layout_width="wrap_content"
+            android:layout_height="36dp"
+            android:text="Copy"
+            android:textSize="12sp"
+            android:minWidth="0dp"
+            android:paddingStart="16dp"
+            android:paddingEnd="16dp"
+            android:layout_marginEnd="8dp"/>
+
+        <!-- Edit VM config -->
+        <Button android:id="@+id/btn_edit"
+            android:layout_width="wrap_content"
+            android:layout_height="36dp"
+            android:text="Edit"
+            android:textSize="12sp"
+            android:minWidth="0dp"
+            android:paddingStart="16dp"
+            android:paddingEnd="16dp"
+            android:layout_marginEnd="8dp"/>
+
+        <!-- Delete VM -->
+        <Button android:id="@+id/btn_delete"
+            android:layout_width="wrap_content"
+            android:layout_height="36dp"
+            android:text="Delete"
+            android:textSize="12sp"
+            android:minWidth="0dp"
+            android:paddingStart="16dp"
+            android:paddingEnd="16dp"
+            android:backgroundTint="#C62828"
+            android:textColor="#FFFFFF"/>
+
+    </LinearLayout>
+
+    <!-- Scrollable monospace command box — takes remaining height -->
+    <HorizontalScrollView
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:background="#0D1117"
+        android:scrollbars="horizontal">
+
+        <TextView android:id="@+id/tv_detail_command"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:fontFamily="monospace"
+            android:textSize="12sp"
+            android:lineSpacingExtra="4dp"
+            android:padding="16dp"
+            android:textColor="#4FC3F7"
+            android:textIsSelectable="true"/>
+
+    </HorizontalScrollView>
+
+    <!-- Hint -->
+    <TextView
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="Long-press to select and copy a portion of the command."
+        android:textSize="11sp"
+        android:textColor="#555"
+        android:layout_marginTop="8dp"/>
+
+</LinearLayout>

@@ -1,0 +1,55 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*.*.*'
+
+jobs:
+  release:
+    name: Create Release
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y meson ninja-build pkg-config libgtk-4-dev gcc g++
+
+      - name: Build release binary
+        run: |
+          meson setup build --buildtype=release
+          cd build && ninja
+
+      - name: Package source
+        run: |
+          git archive --format=tar.gz --prefix=qemu-manager-${{ github.ref_name }}/ HEAD \
+            > qemu-manager-${{ github.ref_name }}-source.tar.gz
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            build/qemu-manager
+            qemu-manager-${{ github.ref_name }}-source.tar.gz
+          body: |
+            ## QEMU Manager ${{ github.ref_name }}
+
+            ### Installation
+            Download the binary, make it executable and run:
+            ```bash
+            chmod +x qemu-manager
+            ./qemu-manager
+            ```
+
+            ### Build from source
+            ```bash
+            tar xzf qemu-manager-${{ github.ref_name }}-source.tar.gz
+            cd qemu-manager-${{ github.ref_name }}
+            meson setup build && cd build && ninja
+            ```
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
