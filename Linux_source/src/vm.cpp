@@ -14,16 +14,16 @@ static const char* archStr(VMArch a){
     int i=(int)a; return(i>=0&&i<35)?t[i]:"x86_64";
 }
 static const char* machStr(MachineType m){
-    static const char* t[]={"pc","q35","virt","microvm","sbsa_ref","virt_acpi","x86_64_microvm","custom"};
-    return t[(int)m<8?(int)m:1];
+    static const char* t[]={"pc","q35","virt","microvm","sbsa_ref","virt_acpi","x86_64_microvm","nitro_enclave","custom"};
+    return t[(int)m<9?(int)m:1];
 }
 static const char* dispStr(DisplayType d){
     static const char* t[]={"gtk","sdl","spice","vnc","egl","dbus","headless"};
     return t[(int)d<7?(int)d:0];
 }
 static const char* gpuStr(GPUType g){
-    static const char* t[]={"VGA","VirtIO_GPU","VirtIO_GPU_GL","VirtIO_GPU_Rutabaga","QXL","Cirrus","VMwareSVGA","ramfb","None"};
-    return t[(int)g<9?(int)g:0];
+    static const char* t[]={"VGA","VirtIO_GPU","VirtIO_GPU_GL","VirtIO_GPU_Rutabaga","VirtIO_GPU_NativeCtx","QXL","Cirrus","VMwareSVGA","ramfb","None"};
+    return t[(int)g<10?(int)g:0];
 }
 static const char* audioStr(AudioType a){
     static const char* t[]={"IntelHDA","AC97","SB16","VirtIO_Sound","None"};
@@ -34,8 +34,8 @@ static const char* netStr(NetworkMode n){
     return t[(int)n<6?(int)n:0];
 }
 static const char* accelStr(Accelerator a){
-    static const char* t[]={"TCG","KVM","KVM_LBT","WHPX","HVF","NVMM","Xen"};
-    return t[(int)a<7?(int)a:0];
+    static const char* t[]={"TCG","KVM","KVM_LBT","WHPX","HVF","NVMM","Xen","Nitro","MSHV"};
+    return t[(int)a<9?(int)a:0];
 }
 static const char* tbStr(TbSize t){
     static const char* s[]={"MB64","MB128","MB256","MB512","MB1024"};
@@ -103,6 +103,12 @@ std::string vmToJson(const VMConfig& vm) {
     j<<"  \"audio\": \""<<audioStr(vm.audio)<<"\",\n";
     j<<"  \"resolution\": \""<<esc(vm.resolution)<<"\",\n";
     j<<"  \"virgl_enabled\": "<<(vm.virgl_enabled?"true":"false")<<",\n";
+  j<<"  \"gpu_extra_outputs\": \"" <<esc(vm.gpu_extra_outputs)<<"\"," <<"\n";
+  j<<"  \"kvm_cet\": "<<(vm.kvm_cet?"true":"false")<<",\n";
+  j<<"  \"x86_cpu_gen\": \"" <<esc(vm.x86_cpu_gen)<<"\"," <<"\n";
+  j<<"  \"conf_vm\": \"" <<(vm.conf_vm==ConfidentialVM::SEV_SNP?"SEV_SNP":vm.conf_vm==ConfidentialVM::TDX?"TDX":"None")<<"\"," <<"\n";
+  j<<"  \"scsi_multiqueue\": "<<(vm.scsi_multiqueue?"true":"false")<<",\n";
+  j<<"  \"riscv_iommu\": "<<(vm.riscv_iommu?"true":"false")<<",\n";
     j<<"  \"usb_version\": \""<<usbVerStr(vm.usb_version)<<"\",\n";
     j<<"  \"usb_tablet\": "<<(vm.usb_tablet?"true":"false")<<",\n";
     j<<"  \"net_mode\": \""<<netStr(vm.net_mode)<<"\",\n";
@@ -170,6 +176,13 @@ VMConfig vmFromJson(const std::string& s) {
     vm.cpu_flags=jsonStr(s,"cpu_flags"); vm.cpu_migratable=jsonBool(s,"cpu_migratable",true);
     vm.sockets=jsonInt(s,"sockets",1); vm.cores=jsonInt(s,"cores",2); vm.threads=jsonInt(s,"threads",2);
     vm.ram_mb=jsonInt(s,"ram_mb",2048); vm.ballooning=jsonBool(s,"ballooning");
+    vm.kvm_cet=jsonBool(s,"kvm_cet"); vm.x86_cpu_gen=jsonStr(s,"x86_cpu_gen");
+    vm.scsi_multiqueue=jsonBool(s,"scsi_multiqueue"); vm.riscv_iommu=jsonBool(s,"riscv_iommu");
+    vm.gpu_extra_outputs=jsonStr(s,"gpu_extra_outputs");
+    std::string cvm=jsonStr(s,"conf_vm");
+    if(cvm=="SEV_SNP") vm.conf_vm=ConfidentialVM::SEV_SNP;
+    else if(cvm=="TDX") vm.conf_vm=ConfidentialVM::TDX;
+    else vm.conf_vm=ConfidentialVM::None;
     vm.memfd_backend=jsonBool(s,"memfd_backend"); vm.mem_slots=jsonInt(s,"mem_slots",0);
     vm.disk_path=jsonStr(s,"disk_path"); vm.iso_path=jsonStr(s,"iso_path"); vm.disk2_path=jsonStr(s,"disk2_path");
     // disk format

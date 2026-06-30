@@ -47,7 +47,7 @@ void VMSettingsDialog::populateFromVM() {
     gtk_drop_down_set_selected(GTK_DROP_DOWN(arch_combo), (guint)vm_ref.arch);
     gtk_drop_down_set_selected(GTK_DROP_DOWN(mode_combo), vm_ref.mode == VMMode::UserMode ? 1 : 0);
     
-    const MachineType mt[] = {MachineType::q35,MachineType::pc,MachineType::virt,MachineType::microvm,MachineType::custom};
+    const MachineType mt[] = {MachineType::q35,MachineType::pc,MachineType::virt,MachineType::microvm,MachineType::sbsa_ref,MachineType::virt_acpi,MachineType::x86_64_microvm,MachineType::nitro_enclave,MachineType::custom};
     for (int i = 0; i < 5; i++) if (mt[i] == vm_ref.machine) { gtk_drop_down_set_selected(GTK_DROP_DOWN(mach_combo), i); break; }
     if (vm_ref.machine == MachineType::custom) {
         gtk_editable_set_text(GTK_EDITABLE(mach_custom), vm_ref.machine_custom.c_str());
@@ -323,6 +323,12 @@ void VMSettingsDialog::buildPages() {
             "TCG  (software emulation - works everywhere)",
             "KVM  (hardware acceleration - requires /dev/kvm)",
             "KVM + LBT  (LoongArch silicon binary translation)",
+            "WHPX  (Windows Hypervisor Platform)",
+            "HVF   (Apple Hypervisor Framework - macOS)",
+            "NVMM  (NetBSD Virtual Machine Monitor)",
+            "Xen   (Xen hypervisor)",
+            "Nitro (AWS Nitro Enclave - QEMU 11)",
+            "MSHV  (Microsoft Hyper-V - QEMU 11)",
             nullptr
         };
         accel_combo = gtk_drop_down_new_from_strings(accel_names);
@@ -407,7 +413,7 @@ VMConfig VMSettingsDialog::collectConfig() {
     c.arch = (VMArch)gtk_drop_down_get_selected(GTK_DROP_DOWN(arch_combo));
     c.mode = gtk_drop_down_get_selected(GTK_DROP_DOWN(mode_combo)) == 1 ? VMMode::UserMode : VMMode::System;
     int mi = gtk_drop_down_get_selected(GTK_DROP_DOWN(mach_combo));
-    const MachineType mt[] = {MachineType::q35,MachineType::pc,MachineType::virt,MachineType::microvm,MachineType::custom};
+    const MachineType mt[] = {MachineType::q35,MachineType::pc,MachineType::virt,MachineType::microvm,MachineType::sbsa_ref,MachineType::virt_acpi,MachineType::x86_64_microvm,MachineType::nitro_enclave,MachineType::custom};
     c.machine = mt[mi < 5 ? mi : 0];
     if (c.machine == MachineType::custom)
         c.machine_custom = gtk_editable_get_text(GTK_EDITABLE(mach_custom));
@@ -441,9 +447,13 @@ VMConfig VMSettingsDialog::collectConfig() {
         c.custom_binary = "";
     }
     
-    const Accelerator ac[] = {Accelerator::TCG, Accelerator::KVM, Accelerator::KVM_LBT};
+    const Accelerator ac[] = {
+        Accelerator::TCG, Accelerator::KVM, Accelerator::KVM_LBT,
+        Accelerator::WHPX, Accelerator::HVF, Accelerator::NVMM,
+        Accelerator::Xen, Accelerator::Nitro, Accelerator::MSHV
+    };
     int ai = gtk_drop_down_get_selected(GTK_DROP_DOWN(accel_combo));
-    c.accel = ac[ai < 3 ? ai : 0];
+    c.accel = ac[ai < 9 ? ai : 0];
     
     c.extra_args = gtk_editable_get_text(GTK_EDITABLE(extra_args_entry));
     c.save_script_to_vm_folder = gtk_check_button_get_active(GTK_CHECK_BUTTON(save_script_check));
