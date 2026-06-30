@@ -66,7 +66,7 @@ void VMSettingsDialog::populateFromVM() {
     gtk_drop_down_set_selected(GTK_DROP_DOWN(disk_fmt_combo), (guint)vm_ref.disk_format);
     gtk_editable_set_text(GTK_EDITABLE(iso_entry), vm_ref.iso_path.c_str());
     
-    gtk_check_button_set_active(GTK_CHECK_BUTTON(uefi_check), vm_ref.uefi);
+    gtk_check_button_set_active(GTK_CHECK_BUTTON(uefi_check), (vm_ref.firmware==Firmware::OVMF||vm_ref.firmware==Firmware::OVMF_SecureBoot));
     gtk_check_button_set_active(GTK_CHECK_BUTTON(boot_menu_check), vm_ref.boot_menu);
     const char* bo[] = {"cd","dc","c","d"};
     for (int i = 0; i < 4; i++) if (std::string(bo[i]) == vm_ref.boot_order) { gtk_drop_down_set_selected(GTK_DROP_DOWN(boot_combo), i); break; }
@@ -281,7 +281,7 @@ void VMSettingsDialog::buildPages() {
         int r = 0;
         
         // Scan /usr/bin for qemu binaries
-        std::vector<std::string> bins = CommandBuilder::listInstalledBinaries();
+        std::vector<std::string> bins = CommandBuilder::listInstalledBinaries(VMMode::System);
         std::vector<const char*> bin_cstr;
         for (auto& b : bins) bin_cstr.push_back(b.c_str());
         bin_cstr.push_back("Custom...");
@@ -420,7 +420,7 @@ VMConfig VMSettingsDialog::collectConfig() {
     c.disk_size_gb = (int)gtk_spin_button_get_value(GTK_SPIN_BUTTON(disk_size_spin));
     c.disk_format = (DiskFormat)gtk_drop_down_get_selected(GTK_DROP_DOWN(disk_fmt_combo));
     c.iso_path = gtk_editable_get_text(GTK_EDITABLE(iso_entry));
-    c.uefi = gtk_check_button_get_active(GTK_CHECK_BUTTON(uefi_check));
+    c.firmware = gtk_check_button_get_active(GTK_CHECK_BUTTON(uefi_check)) ? Firmware::OVMF : Firmware::SeaBIOS;
     c.boot_menu = gtk_check_button_get_active(GTK_CHECK_BUTTON(boot_menu_check));
     const char* bo[] = {"cd","dc","c","d"};
     int boi = gtk_drop_down_get_selected(GTK_DROP_DOWN(boot_combo));

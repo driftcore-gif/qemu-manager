@@ -1,18 +1,17 @@
 #pragma once
 #include "vm.h"
 #include <string>
+#include <vector>
 
-// Serialise / deserialise VMConfig to/from JSON
-// Uses a minimal hand-written parser (no external deps)
-class VMConfigIO {
-public:
-    // Save config to <vm_dir>/vm.json
-    static bool save(const VMConfig& vm);
-
-    // Load config from <vm_dir>/vm.json — returns false if missing/corrupt
-    static bool load(const std::string& vm_dir, VMConfig& out);
-
-    // Low-level: parse from string, serialise to string
-    static std::string toJson(const VMConfig& vm);
-    static bool        fromJson(const std::string& json, VMConfig& out);
+struct VMConfigIO {
+    static bool                  save(const VMConfig& vm);
+    static VMConfig              load(const std::string& vm_dir);
+    static std::vector<VMConfig> loadAll(const std::string& base_dir);
+    static bool                  createVMDir(const VMConfig& vm);
+    static void                  writeStartScript(const VMConfig& vm);
+    static std::string           defaultVMDir();
 };
+
+// Free functions for backward compat
+std::string vmToJson(const VMConfig& vm);
+VMConfig    vmFromJson(const std::string& json);

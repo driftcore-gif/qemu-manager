@@ -1,3 +1,4 @@
+#include "vmconfig_io.h"
 #include "mainwindow.h"
 #include "gtk_compat.h"
 #include <unistd.h>
@@ -21,8 +22,6 @@ GtkWidget* buildVMListWidget(const std::vector<VMConfig>& vms);
 GtkWidget* buildLogViewer(const std::string& log_path);
 GtkWidget* buildSerialConsole();
 GtkWidget* buildDownloadManager();
-bool saveVMConfig(const VMConfig& vm);
-VMConfig loadVMConfig(const std::string& vm_dir);
 
 static std::string exec_cmd2(const std::string& cmd) {
     std::array<char,256> buf; std::string result;
@@ -108,7 +107,7 @@ void MainWindow::loadVMs() {
         std::string cfg = vm_dir + "/vm.json";
         struct stat st;
         if (stat(cfg.c_str(), &st) == 0) {
-            VMConfig vm = loadVMConfig(vm_dir);
+            VMConfig vm = VMConfigIO::load(vm_dir);
             std::string pid_file = vm_dir + "/vm.pid";
             if (stat(pid_file.c_str(), &st) == 0) {
                 std::ifstream pf(pid_file);
@@ -127,7 +126,7 @@ void MainWindow::loadVMs() {
 
 void MainWindow::saveVM(const VMConfig& vm) {
     g_mkdir_with_parents(vm.vm_dir.c_str(), 0755);
-    saveVMConfig(vm);
+    VMConfigIO::save(vm);
 }
 
 void MainWindow::buildUI(GtkApplication* app) {
@@ -202,7 +201,7 @@ void MainWindow::buildUI(GtkApplication* app) {
         if (self->selected_vm_name.empty()) return;
         for (const auto& vm : self->vms) {
             if (vm.name == self->selected_vm_name) {
-                std::string cmd = CommandBuilder::buildCommand(vm, Settings::get().qemu_bin_path);
+                std::string cmd = CommandBuilder::buildCommand(vm);
                 GdkClipboard* clip = gdk_display_get_clipboard(gdk_display_get_default());
                 gdk_clipboard_set_text(clip, cmd.c_str());
                 break;
@@ -696,7 +695,7 @@ void MainWindow::updateCommandPreview() {
     }
     for (const auto& vm : vms) {
         if (vm.name == selected_vm_name) {
-            std::string cmd = CommandBuilder::buildCommand(vm, Settings::get().qemu_bin_path);
+            std::string cmd = CommandBuilder::buildCommand(vm);
             gtk_label_set_text(GTK_LABEL(cmd_preview_label), cmd.c_str());
             return;
         }
@@ -711,7 +710,7 @@ void MainWindow::onStartVM() {
             g_mkdir_with_parents(log_dir.c_str(), 0755);
 
             // Build the full QEMU command
-            std::string qemu_cmd = CommandBuilder::buildCommand(vm, Settings::get().qemu_bin_path);
+            std::string qemu_cmd = CommandBuilder::buildCommand(vm);
 
             // Send directly to bash — log the command, then execute
             std::string log_file = log_dir + "/qemu.log";
@@ -839,7 +838,7 @@ void MainWindow::onSettingsVM() {
 
 void MainWindow::onImportVM() {
     FolderData* fd = new FolderData{[this](std::string path) {
-        VMConfig vm = loadVMConfig(path);
+        VMConfig vm = VMConfigIO::load(path);
         if (!vm.name.empty()) vms.push_back(vm);
     }};
 #if GTK_CHECK_VERSION(4, 10, 0)

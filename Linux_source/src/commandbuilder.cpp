@@ -1,26 +1,22 @@
-#include <algorithm>
 #include "commandbuilder.h"
-#include "vmconfig_io.h"
+#include <algorithm>
 #include <sstream>
 #include <fstream>
 #include <cstring>
-#include <unistd.h>
 #include <dirent.h>
 #include <sys/stat.h>
-#include <vector>
+#include <unistd.h>
 
-// ============================================================
-// Arch -> default binary name
-// ============================================================
+// ── arch → binary name ────────────────────────────────────────────────
 std::string CommandBuilder::archToQemuBin(VMArch arch, VMMode mode) {
     if (mode == VMMode::System) {
-        const char* t[] = {
+        static const char* t[] = {
             "qemu-system-x86_64","qemu-system-i386",
             "qemu-system-aarch64","qemu-system-arm","qemu-system-arm",
             "qemu-system-riscv64","qemu-system-riscv32",
             "qemu-system-mips","qemu-system-mipsel",
             "qemu-system-mips64","qemu-system-mips64el",
-            "qemu-system-mips","qemu-system-mipsel",   // mipsn32/n32el -> no sys binary
+            "qemu-system-mips","qemu-system-mipsel",
             "qemu-system-ppc","qemu-system-ppc64","qemu-system-ppc64",
             "qemu-system-sparc","qemu-system-sparc64","qemu-system-sparc",
             "qemu-system-alpha","qemu-system-hppa","qemu-system-m68k",
@@ -31,10 +27,9 @@ std::string CommandBuilder::archToQemuBin(VMArch arch, VMMode mode) {
             "qemu-system-tricore","qemu-system-rx",
             "qemu-system-avr","qemu-system-hexagon"
         };
-        int i = (int)arch;
-        return (i>=0 && i<(int)(sizeof(t)/sizeof(t[0]))) ? t[i] : "qemu-system-x86_64";
+        int i=(int)arch; return(i>=0&&i<(int)(sizeof(t)/sizeof(t[0])))?t[i]:"qemu-system-x86_64";
     }
-    const char* t[] = {
+    static const char* u[] = {
         "qemu-x86_64","qemu-i386",
         "qemu-aarch64","qemu-arm","qemu-armeb",
         "qemu-riscv64","qemu-riscv32",
@@ -48,266 +43,314 @@ std::string CommandBuilder::archToQemuBin(VMArch arch, VMMode mode) {
         "qemu-sh4","qemu-sh4eb","qemu-xtensa","qemu-xtensaeb",
         "qemu-tricore","qemu-rx","qemu-avr","qemu-hexagon"
     };
-    int i = (int)arch;
-    return (i>=0 && i<(int)(sizeof(t)/sizeof(t[0]))) ? t[i] : "qemu-x86_64";
+    int i=(int)arch; return(i>=0&&i<(int)(sizeof(u)/sizeof(u[0])))?u[i]:"qemu-x86_64";
 }
 
-// ============================================================
-// Resolve the actual binary path for a VM
-//   BinaryMode::Auto   -> /usr/bin/<arch-derived name>
-//   BinaryMode::Custom -> /usr/bin/<custom_binary>
-// ============================================================
 std::string CommandBuilder::resolveBinary(const VMConfig& vm) {
     std::string name;
-    if (vm.binary_mode == BinaryMode::Custom && !vm.custom_binary.empty())
-        name = vm.custom_binary;
+    if (vm.binary_mode==BinaryMode::Custom && !vm.custom_binary.empty())
+        name=vm.custom_binary;
     else
-        name = archToQemuBin(vm.arch, vm.mode);
-    return "/usr/bin/" + name;
+        name=archToQemuBin(vm.arch, vm.mode);
+    // Check Termux path first, then standard
+    for (const char* dir : {"/data/data/com.termux/files/usr/bin", "/usr/bin"}) {
+        std::string full=std::string(dir)+"/"+name;
+        if (access(full.c_str(),X_OK)==0) return full;
+    }
+    return "/usr/bin/"+name;
 }
 
-// ============================================================
-// Scan /usr/bin/ for installed qemu-system-* binaries
-// ============================================================
 std::vector<std::string> CommandBuilder::listInstalledBinaries(VMMode mode) {
     std::vector<std::string> out;
-    const char* prefix = (mode == VMMode::System) ? "qemu-system-" : "qemu-";
-    DIR* d = opendir("/usr/bin");
-    if (!d) return out;
-    struct dirent* e;
-    while ((e = readdir(d))) {
-        std::string n = e->d_name;
-        if (n.rfind(prefix, 0) == 0) {
-            // For user-mode exclude "qemu-system-*"
-            if (mode == VMMode::UserMode && n.rfind("qemu-system-",0)==0) continue;
-            out.push_back(n);
+    const char* prefix=(mode==VMMode::System)?"qemu-system-":"qemu-";
+    for (const char* dir : {"/usr/bin","/data/data/com.termux/files/usr/bin"}) {
+        DIR* d=opendir(dir); if(!d) continue;
+        struct dirent* e;
+        while((e=readdir(d))) {
+            std::string n=e->d_name;
+            if(n.rfind(prefix,0)==0) {
+                if(mode==VMMode::UserMode && n.rfind("qemu-system-",0)==0) continue;
+                if(std::find(out.begin(),out.end(),n)==out.end()) out.push_back(n);
+            }
         }
+        closedir(d);
     }
-    closedir(d);
-    std::sort(out.begin(), out.end());
+    std::sort(out.begin(),out.end());
     return out;
 }
 
-// ============================================================
-// Validate custom binary name:
-//   - no spaces, no slashes, no flag chars after name
-//   - must start with qemu-
-//   - must exist in /usr/bin/
-// Returns "" on OK, error message on fail
-// ============================================================
 std::string CommandBuilder::validateCustomBinary(const std::string& name) {
-    if (name.empty())         return "Binary name is empty.";
-    if (name.find(' ')  != std::string::npos) return "Binary name must not contain spaces.";
-    if (name.find('/')  != std::string::npos) return "Binary name must not contain slashes (always resolved in /usr/bin/).";
-    if (name.find('-', name.find('-')+1) != std::string::npos) {
-        // allow qemu-system-foo but not qemu-system-foo -flag
-        // real check: must be alnum + hyphen only
-    }
-    // Allow only alphanum + hyphen + underscore
-    for (char c : name)
-        if (!isalnum(c) && c!='-' && c!='_')
-            return std::string("Invalid character '") + c + "' in binary name.";
-    if (name.rfind("qemu-",0) != 0)
-        return "Binary must start with 'qemu-'.";
-    struct stat st{};
-    if (stat(("/usr/bin/"+name).c_str(), &st) != 0)
-        return "Binary '/usr/bin/" + name + "' not found.";
+    if(name.empty()) return "Binary name is empty.";
+    if(name.find(' ')!=std::string::npos) return "Must not contain spaces.";
+    if(name.find('/')!=std::string::npos) return "Must not contain slashes.";
+    if(name.rfind("qemu-",0)!=0) return "Must start with 'qemu-'.";
     return "";
 }
 
-// ============================================================
-// Build argv
-// ============================================================
+// ── Build argument list — full QEMU 11 feature set ────────────────────
 std::vector<std::string> CommandBuilder::buildArgs(const VMConfig& vm) {
-    std::vector<std::string> args;
+    std::vector<std::string> a;
+    auto add=[&](const std::string& s){ a.push_back(s); };
+    auto flag=[&](const std::string& f,const std::string& v){ add(f); add(v); };
 
-    if (vm.mode == VMMode::UserMode) {
-        if (!vm.extra_args.empty()) {
-            std::istringstream iss(vm.extra_args);
-            std::string t; while (iss>>t) args.push_back(t);
+    if(vm.mode==VMMode::UserMode) {
+        if(!vm.extra_args.empty()) {
+            std::istringstream ss(vm.extra_args);
+            std::string tok; while(ss>>tok) add(tok);
         }
-        return args;
+        return a;
     }
 
-    // Machine
-    const char* mach_map[] = {"pc","q35","virt","microvm",""};
-    std::string mach = (vm.machine==MachineType::custom)
-        ? vm.machine_custom : mach_map[(int)vm.machine];
-    args.push_back("-machine"); args.push_back(mach);
-
-    // Accelerator
-    switch (vm.accel) {
-        case Accelerator::TCG:
-            args.push_back("-accel"); args.push_back("tcg,thread=multi"); break;
-        case Accelerator::KVM:
-            args.push_back("-accel"); args.push_back("kvm"); break;
-        case Accelerator::KVM_LBT:
-            args.push_back("-accel"); args.push_back("kvm");
-            // LBT extension exposed via cpu flag
-            args.push_back("-cpu");   args.push_back(vm.cpu_model + ",lbt=on");
-            goto skip_cpu; // cpu already added
+    // ── Machine ───────────────────────────────────────────────────────
+    std::string mach;
+    switch(vm.machine) {
+        case MachineType::pc:             mach="pc"; break;
+        case MachineType::virt:           mach="virt"; break;
+        case MachineType::microvm:        mach="microvm"; break;
+        case MachineType::sbsa_ref:       mach="sbsa-ref"; break;
+        case MachineType::virt_acpi:      mach="virt,acpi=on"; break;
+        case MachineType::x86_64_microvm: mach="microvm,x-option-roms=off,isa-serial=off,pit=off,pic=off"; break;
+        case MachineType::custom:         mach=vm.machine_custom.empty()?"q35":vm.machine_custom; break;
+        default:                          mach="q35"; break;
     }
-    // CPU + SMP (normal path)
-    args.push_back("-cpu"); args.push_back(vm.cpu_model);
-    skip_cpu:
-    args.push_back("-smp");
-    args.push_back(std::to_string(vm.sockets*vm.cores*vm.threads)
+    flag("-machine", mach);
+
+    // ── Accelerator ───────────────────────────────────────────────────
+    static const int TB_MB[]={64,128,256,512,1024};
+    int tb=TB_MB[(int)vm.tb_size];
+    switch(vm.accel) {
+        case Accelerator::TCG: {
+            std::string opts="tcg,thread=";
+            opts+=(vm.tcg_mttcg?"multi":"single");
+            opts+=",tb-size="+std::to_string(tb);
+            flag("-accel",opts); break;
+        }
+        case Accelerator::KVM:     flag("-accel","kvm"); break;
+        case Accelerator::KVM_LBT: flag("-accel","kvm"); break;
+        case Accelerator::WHPX:    flag("-accel","whpx"); break;
+        case Accelerator::HVF:     flag("-accel","hvf"); break;
+        case Accelerator::NVMM:    flag("-accel","nvmm"); break;
+        case Accelerator::Xen:     flag("-accel","xen"); break;
+    }
+
+    // ── CPU ───────────────────────────────────────────────────────────
+    {
+        std::string cpu=vm.cpu_model;
+        if(vm.accel==Accelerator::KVM_LBT) cpu+=",lbt=on";
+        if(vm.accel==Accelerator::KVM && vm.kvm_nested) cpu+=",vmx=on";
+        if(!vm.cpu_flags.empty()) cpu+=","+vm.cpu_flags;
+        if(!vm.cpu_migratable) cpu+=",migratable=off";
+        flag("-cpu",cpu);
+    }
+    flag("-smp", std::to_string(vm.sockets*vm.cores*vm.threads)
         +",sockets="+std::to_string(vm.sockets)
-        +",cores="  +std::to_string(vm.cores)
+        +",cores="+std::to_string(vm.cores)
         +",threads="+std::to_string(vm.threads));
 
-    // RAM
-    args.push_back("-m"); args.push_back(std::to_string(vm.ram_mb));
-    if (vm.ballooning) { args.push_back("-device"); args.push_back("virtio-balloon-pci"); }
+    // ── Memory ────────────────────────────────────────────────────────
+    if(vm.memfd_backend) {
+        flag("-object","memory-backend-memfd,id=mem,size="+std::to_string(vm.ram_mb)+"M,share=on");
+        flag("-numa","node,memdev=mem");
+    } else {
+        flag("-m",std::to_string(vm.ram_mb));
+    }
+    if(vm.mem_slots>0)
+        flag("-m", std::to_string(vm.ram_mb)+"M,slots="+std::to_string(vm.mem_slots)
+            +",maxmem="+std::to_string(vm.ram_mb*2)+"M");
+    if(vm.ballooning){ add("-device"); add("virtio-balloon-pci"); }
 
-    // UEFI
-    if (vm.uefi) { args.push_back("-bios"); args.push_back("/usr/share/ovmf/OVMF.fd"); }
-
-    // Disk
-    if (!vm.disk_path.empty()) {
-        const char* fmts[]={"qcow2","raw","vmdk","vdi"};
-        args.push_back("-drive");
-        args.push_back("file="+vm.disk_path+",if=virtio,format="+fmts[(int)vm.disk_format]);
+    // ── Firmware ──────────────────────────────────────────────────────
+    switch(vm.firmware) {
+        case Firmware::OVMF:
+            flag("-drive","if=pflash,format=raw,readonly=on,file=/usr/share/OVMF/OVMF_CODE.fd"); break;
+        case Firmware::OVMF_SecureBoot:
+            flag("-drive","if=pflash,format=raw,readonly=on,file=/usr/share/OVMF/OVMF_CODE.secboot.fd");
+            if(vm.secure_boot){ add("-global"); add("driver=cfi.pflash01,property=secure,value=on"); }
+            break;
+        case Firmware::U_Boot:
+            flag("-bios","/usr/lib/u-boot/qemu-arm/u-boot.bin"); break;
+        case Firmware::EDK2_ARM:
+            flag("-drive","if=pflash,format=raw,readonly=on,file=/usr/share/qemu-efi-aarch64/QEMU_EFI.fd"); break;
+        default: break; // SeaBIOS = default
+    }
+    {
+        std::string b="order="+vm.boot_order;
+        if(vm.boot_menu) b+=",menu=on";
+        flag("-boot",b);
     }
 
-    // ISO
-    if (!vm.iso_path.empty()) { args.push_back("-cdrom"); args.push_back(vm.iso_path); }
+    // ── Storage ───────────────────────────────────────────────────────
+    static const char* FMTS[]={"qcow2","raw","vmdk","vdi"};
+    std::string fmt=FMTS[(int)vm.disk_format];
+    if(!vm.disk_path.empty()) {
+        std::string discard=vm.disk_discard?",discard=unmap,detect-zeroes=unmap":"";
+        if(vm.disk_interface==DiskInterface::nvme) {
+            flag("-drive","file="+vm.disk_path+",id=drive0,format="+fmt+",if=none"+discard);
+            flag("-device","nvme,drive=drive0,serial=qemu-nvme0,num-queues="
+                +std::to_string(vm.cores*vm.threads));
+        } else if(vm.use_scsi_ctrl && vm.disk_interface==DiskInterface::scsi) {
+            flag("-device","virtio-scsi-pci,id=scsi0");
+            flag("-drive","file="+vm.disk_path+",id=drive0,format="+fmt+",if=none"+discard);
+            flag("-device","scsi-hd,bus=scsi0.0,drive=drive0");
+        } else {
+            static const char* IFACES[]={"virtio","scsi","none","ide","sata"};
+            std::string iface=IFACES[(int)vm.disk_interface];
+            flag("-drive","file="+vm.disk_path+",if="+iface+",format="+fmt+discard);
+        }
+    }
+    if(!vm.disk2_path.empty())
+        flag("-drive","file="+vm.disk2_path+",if=virtio,format="+fmt);
+    if(!vm.iso_path.empty())
+        flag("-cdrom",vm.iso_path);
 
-    // Boot
-    if (!vm.boot_order.empty()) {
-        std::string b = "order="+vm.boot_order;
-        if (vm.boot_menu) b+=",menu=on";
-        args.push_back("-boot"); args.push_back(b);
+    // ── Display ───────────────────────────────────────────────────────
+    static const char* DISP[]={"gtk","sdl","spice-app","vnc=:0","egl-headless","dbus","none"};
+    std::string disp_val=DISP[(int)vm.display];
+    // For VirGL add gl=on to display
+    if(vm.virgl_enabled &&
+       (vm.gpu==GPUType::VirtIO_GPU_GL) &&
+       (vm.display==DisplayType::GTK||vm.display==DisplayType::SDL||vm.display==DisplayType::EGL))
+        disp_val+=",gl=on";
+    flag("-display",disp_val);
+
+    // Resolution
+    if(!vm.resolution.empty() && vm.resolution!="default") {
+        std::string r=vm.resolution;
+        auto pos=r.find('x');
+        if(pos!=std::string::npos) { r[pos]=','; flag("-g",r); }
     }
 
-    // Display — SDL default
-    const char* disp_map[]={"gtk","sdl","spice-app","vnc=:0","egl-headless","none"};
-    args.push_back("-display"); args.push_back(disp_map[(int)vm.display]);
-
-    // GPU
-    const char* gpu_map[]={"VGA","virtio-gpu-pci","qxl-vga","cirrus-vga","vmware-svga",""};
-    if (vm.gpu!=GPUType::None) {
-        args.push_back("-device"); args.push_back(gpu_map[(int)vm.gpu]);
-    }
-
-    // Audio
-    switch (vm.audio) {
-        case AudioType::IntelHDA:
-            args.push_back("-device"); args.push_back("intel-hda");
-            args.push_back("-device"); args.push_back("hda-duplex"); break;
-        case AudioType::AC97:
-            args.push_back("-device"); args.push_back("AC97"); break;
-        case AudioType::SB16:
-            args.push_back("-device"); args.push_back("sb16"); break;
+    // ── GPU ───────────────────────────────────────────────────────────
+    switch(vm.gpu) {
+        case GPUType::VGA:               flag("-device","VGA"); break;
+        case GPUType::VirtIO_GPU:        flag("-device","virtio-gpu-pci"); break;
+        case GPUType::VirtIO_GPU_GL:     flag("-device","virtio-gpu-gl-pci"); break;
+        case GPUType::VirtIO_GPU_Rutabaga:
+            flag("-device","virtio-gpu-rutabaga,cross-domain=on,wsi=headless"); break;
+        case GPUType::QXL:               flag("-device","qxl-vga"); break;
+        case GPUType::Cirrus:            flag("-device","cirrus-vga"); break;
+        case GPUType::VMwareSVGA:        flag("-device","vmware-svga"); break;
+        case GPUType::ramfb:             flag("-device","ramfb"); break;
         default: break;
     }
 
-    // USB
-    args.push_back("-usb");
-    for (const auto& u : vm.usb_devices) {
-        if      (u.type=="tablet")   {args.push_back("-device");args.push_back("usb-tablet");}
-        else if (u.type=="mouse")    {args.push_back("-device");args.push_back("usb-mouse");}
-        else if (u.type=="keyboard") {args.push_back("-device");args.push_back("usb-kbd");}
+    // ── Audio ─────────────────────────────────────────────────────────
+    switch(vm.audio) {
+        case AudioType::IntelHDA:
+            flag("-device","intel-hda"); flag("-device","hda-duplex"); break;
+        case AudioType::AC97:        flag("-device","AC97"); break;
+        case AudioType::SB16:        flag("-device","sb16"); break;
+        case AudioType::VirtIO_Sound:flag("-device","virtio-sound-pci"); break;
+        default: break;
     }
 
-    // Network
-    switch (vm.net_mode) {
+    // ── USB ───────────────────────────────────────────────────────────
+    if(vm.usb_version==UsbVersion::USB3_XHCI)
+        flag("-device","qemu-xhci,id=xhci");
+    else
+        add("-usb");
+    if(vm.usb_tablet){ add("-device"); add("usb-tablet"); }
+
+    // ── Network ───────────────────────────────────────────────────────
+    switch(vm.net_mode) {
         case NetworkMode::User: {
             std::string nd="user,id=net0";
-            for (const auto& pf:vm.port_forwards)
-                nd+=",hostfwd="+pf.protocol+"::"+std::to_string(pf.host_port)+"-:"+std::to_string(pf.guest_port);
-            args.push_back("-netdev"); args.push_back(nd);
-            args.push_back("-device"); args.push_back("virtio-net-pci,netdev=net0"); break;
+            if(!vm.net_dns.empty())  nd+=",dns="+vm.net_dns;
+            if(!vm.smb_share.empty())nd+=",smb="+vm.smb_share;
+            flag("-netdev",nd);
+            flag("-device","virtio-net-pci,netdev=net0"); break;
         }
         case NetworkMode::TAP:
-            args.push_back("-netdev"); args.push_back("tap,id=net0,ifname=tap0,script=no");
-            args.push_back("-device"); args.push_back("virtio-net-pci,netdev=net0"); break;
+            flag("-netdev","tap,id=net0,ifname=tap0,script=no,downscript=no");
+            flag("-device","virtio-net-pci,netdev=net0"); break;
         case NetworkMode::Bridge:
-            args.push_back("-netdev"); args.push_back("bridge,id=net0,br=br0");
-            args.push_back("-device"); args.push_back("virtio-net-pci,netdev=net0"); break;
+            flag("-netdev","bridge,id=net0,br=br0");
+            flag("-device","virtio-net-pci,netdev=net0"); break;
         case NetworkMode::Socket:
-            args.push_back("-netdev"); args.push_back("socket,id=net0,listen=:4444");
-            args.push_back("-device"); args.push_back("virtio-net-pci,netdev=net0"); break;
+            flag("-netdev","socket,id=net0,listen=:4444");
+            flag("-device","virtio-net-pci,netdev=net0"); break;
+        case NetworkMode::VDE:
+            flag("-netdev","vde,id=net0");
+            flag("-device","virtio-net-pci,netdev=net0"); break;
+        case NetworkMode::VirtIO_VHostNet:
+            flag("-netdev","vhost-user,id=net0,chardev=chr0,vhostforce=on");
+            flag("-device","virtio-net-pci,netdev=net0,mrg_rxbuf=on"); break;
     }
 
-    // Shared folders
-    for (size_t i=0;i<vm.shared_folders.size();i++) {
-        const auto& sf=vm.shared_folders[i];
-        std::string tag="share"+std::to_string(i);
-        std::string fsdev="local,security_model=passthrough,id="+tag+",path="+sf.host_path;
-        if (sf.read_only) fsdev+=",readonly=on";
-        args.push_back("-fsdev"); args.push_back(fsdev);
-        args.push_back("-device"); args.push_back("virtio-9p-pci,fsdev="+tag+",mount_tag="+tag);
+    // ── IOMMU ─────────────────────────────────────────────────────────
+    switch(vm.iommu) {
+        case IommuType::Intel:       flag("-device","intel-iommu,intremap=on,caching-mode=on"); break;
+        case IommuType::SMMUv3:      flag("-device","arm-smmuv3"); break;
+        case IommuType::VirtIO_IOMMU:flag("-device","virtio-iommu-pci"); break;
+        default: break;
     }
 
-    // Monitor socket + pidfile
-    args.push_back("-monitor"); args.push_back("unix:"+vm.vm_dir+"/monitor.sock,server,nowait");
-    args.push_back("-pidfile");  args.push_back(vm.vm_dir+"/vm.pid");
-
-    // Extra args LAST
-    if (!vm.extra_args.empty()) {
-        std::istringstream iss(vm.extra_args);
-        std::string t; while (iss>>t) args.push_back(t);
+    // ── TPM ───────────────────────────────────────────────────────────
+    switch(vm.tpm) {
+        case TpmType::TIS:
+            flag("-tpmdev","passthrough,id=tpm0,path=/dev/tpm0");
+            flag("-device","tpm-tis,tpmdev=tpm0"); break;
+        case TpmType::CRB:
+            flag("-tpmdev","emulator,id=tpm0,chardev=chrtpm");
+            flag("-chardev","socket,id=chrtpm,path=/var/run/swtpm/sock");
+            flag("-device","tpm-crb,tpmdev=tpm0"); break;
+        default: break;
     }
 
-    return args;
+    // ── VirtIO RNG ────────────────────────────────────────────────────
+    if(vm.virtio_rng){ add("-device"); add("virtio-rng-pci"); }
+
+    // ── QEMU 11 misc ──────────────────────────────────────────────────
+    if(vm.snapshot_mode) add("-snapshot");
+    if(vm.no_reboot)     add("-no-reboot");
+
+    // ── Monitor ───────────────────────────────────────────────────────
+    if(!vm.vm_dir.empty()) {
+        flag("-monitor","unix:"+vm.vm_dir+"/monitor.sock,server,nowait");
+        flag("-pidfile", vm.vm_dir+"/vm.pid");
+    }
+
+    // ── Extra args LAST ───────────────────────────────────────────────
+    if(!vm.extra_args.empty()) {
+        std::istringstream ss(vm.extra_args);
+        std::string tok; while(ss>>tok) add(tok);
+    }
+    return a;
 }
 
-std::string CommandBuilder::buildCommand(const VMConfig& vm, const std::string&) {
-    std::string bin = resolveBinary(vm);
-    auto args = buildArgs(vm);
-    std::ostringstream o; o << bin;
-    for (const auto& a:args) o<<" "<<a;
-    return o.str();
-}
-
-std::string CommandBuilder::formatCommand(const VMConfig& vm, const std::string&) {
-    std::string bin = resolveBinary(vm);
-    auto args = buildArgs(vm);
-    std::ostringstream o; o << bin;
-    for (size_t i=0;i<args.size();i++) {
-        if (i%2==0) o<<" \\\n  "<<args[i];
-        else        o<<" "<<args[i];
+// ── Format helpers ────────────────────────────────────────────────────
+std::string CommandBuilder::buildCommand(const VMConfig& vm) {
+    std::string bin=resolveBinary(vm);
+    std::ostringstream s; s<<bin;
+    for(auto& a:buildArgs(vm)){
+        s<<' ';
+        if(a.find(' ')!=std::string::npos) s<<'"'<<a<<'"'; else s<<a;
     }
-    return o.str();
+    return s.str();
 }
 
-// ============================================================
-// launchVM — pure in-memory, zero tmp files
-// ============================================================
-pid_t CommandBuilder::launchVM(const std::string& vm_dir, const std::string&) {
-    VMConfig vm;
-    if (!VMConfigIO::load(vm_dir, vm)) return -1;
-
-    // Validate custom binary if set
-    if (vm.binary_mode == BinaryMode::Custom) {
-        std::string err = validateCustomBinary(vm.custom_binary);
-        if (!err.empty()) return -1;
+std::string CommandBuilder::formatCommand(const VMConfig& vm) {
+    std::string bin=resolveBinary(vm);
+    std::ostringstream s; s<<bin;
+    auto args=buildArgs(vm);
+    for(size_t i=0;i<args.size();) {
+        s<<" \\\n  "<<args[i];
+        if(args[i].rfind("-",0)==0 && i+1<args.size() && args[i+1].rfind("-",0)!=0) {
+            ++i;
+            if(args[i].find(' ')!=std::string::npos) s<<" \""<<args[i]<<"\"";
+            else s<<" "<<args[i];
+        }
+        ++i;
     }
-
-    if (vm.save_script_to_vm_folder) writeStartScript(vm);
-
-    std::string bin = resolveBinary(vm);
-    auto args = buildArgs(vm);
-
-    std::vector<char*> argv;
-    argv.push_back(const_cast<char*>(bin.c_str()));
-    for (auto& a:args) argv.push_back(const_cast<char*>(a.c_str()));
-    argv.push_back(nullptr);
-
-    pid_t pid = fork();
-    if (pid==0) { execvp(argv[0],argv.data()); _exit(127); }
-    return pid;
+    return s.str();
 }
 
-bool CommandBuilder::writeStartScript(const VMConfig& vm, const std::string&) {
-    if (vm.vm_dir.empty()) return false;
-    std::string path = vm.vm_dir+"/start.sh";
-    std::ofstream f(path);
-    if (!f) return false;
-    f << "#!/bin/bash\n# Generated by qemu-manager\n# VM: "<<vm.name<<"\n\n"
-      << formatCommand(vm) << "\n";
+void CommandBuilder::writeStartScript(const VMConfig& vm) {
+    if(vm.vm_dir.empty()) return;
+    std::ofstream f(vm.vm_dir+"/start.sh");
+    if(!f) return;
+    f<<"#!/bin/bash\n# QEMU Manager — generated start script\n# VM: "<<vm.name<<"\n\n";
+    f<<formatCommand(vm)<<"\n";
     f.close();
-    ::chmod(path.c_str(),0755);
-    return true;
+    chmod((vm.vm_dir+"/start.sh").c_str(),0755);
 }
