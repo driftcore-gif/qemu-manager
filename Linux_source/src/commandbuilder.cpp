@@ -114,6 +114,8 @@ std::vector<std::string> CommandBuilder::buildArgs(const VMConfig& vm) {
             case MachineType::x86_64_microvm: mach="microvm,x-option-roms=off,isa-serial=off,pit=off,pic=off"; break;
             // QEMU 11: Nitro Enclave machine type
             case MachineType::nitro_enclave:  mach="nitro-enclave"; break;
+            // QEMU 10.2: AMD Versal2 virtual platform
+            case MachineType::amd_versal2_virt: mach="amd-versal2-virt"; break;
             case MachineType::custom:         mach=vm.machine_custom.empty()?"q35":vm.machine_custom; break;
             default:                          mach="q35"; break;
         }

@@ -1,5 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
+
+    <!-- ── Architecture ─────────────────────────────────────────────── -->
     <string-array name="arch_names">
         <item>x86_64</item><item>i386</item>
         <item>aarch64</item><item>arm</item><item>armeb</item>
@@ -15,37 +17,283 @@
         <item>xtensa</item><item>xtensaeb</item>
         <item>tricore</item><item>rx</item><item>avr</item><item>hexagon</item>
     </string-array>
+
     <string-array name="vm_modes">
         <item>System (softmmu)</item>
         <item>User mode (linux-user)</item>
     </string-array>
-    <string-array name="machine_types">
-        <item>q35</item><item>pc</item><item>virt</item><item>microvm</item><item>custom</item>
+
+    <!-- ── Machine types per arch ────────────────────────────────────── -->
+    <!-- x86_64 / i386 -->
+    <string-array name="machine_x86">
+        <item>q35 (recommended)</item>
+        <item>pc (i440fx legacy)</item>
+        <item>microvm (minimal)</item>
+        <item>x86-microvm (no PCI)</item>
+        <item>nitro-enclave (QEMU 11)</item>
+        <item>custom</item>
     </string-array>
-    <string-array name="disk_formats">
-        <item>qcow2</item><item>raw</item><item>vmdk</item><item>vdi</item>
+    <!-- aarch64 / arm / armeb -->
+    <string-array name="machine_arm">
+        <item>virt (recommended)</item>
+        <item>virt-acpi (QEMU 11)</item>
+        <item>sbsa-ref (SBSA platform)</item>
+        <item>raspi3b</item>
+        <item>raspi4b</item>
+        <item>mps2-an386</item>
+        <item>custom</item>
     </string-array>
-    <string-array name="boot_orders">
-        <item>cd (CD first)</item><item>dc (Disk first)</item>
-        <item>c (Disk only)</item><item>d (CD only)</item>
+    <!-- RISC-V -->
+    <string-array name="machine_riscv">
+        <item>virt (recommended)</item>
+        <item>sifive_u</item>
+        <item>sifive_e</item>
+        <item>spike</item>
+        <item>custom</item>
     </string-array>
-    <string-array name="display_types">
-        <item>SDL (recommended)</item><item>GTK</item><item>SPICE</item>
-        <item>VNC</item><item>EGL</item><item>Headless</item>
+    <!-- MIPS -->
+    <string-array name="machine_mips">
+        <item>malta (recommended)</item>
+        <item>mipssim</item>
+        <item>custom</item>
     </string-array>
-    <string-array name="gpu_types">
-        <item>VGA</item><item>VirtIO GPU</item><item>QXL</item>
-        <item>Cirrus</item><item>VMware SVGA</item><item>None</item>
+    <!-- PowerPC -->
+    <string-array name="machine_ppc">
+        <item>pseries (recommended)</item>
+        <item>mac99</item>
+        <item>g3beige</item>
+        <item>bamboo</item>
+        <item>custom</item>
     </string-array>
-    <string-array name="audio_types">
-        <item>Intel HDA</item><item>AC97</item><item>SB16</item><item>None</item>
+    <!-- s390x -->
+    <string-array name="machine_s390">
+        <item>s390-ccw-virtio (recommended)</item>
+        <item>custom</item>
     </string-array>
-    <string-array name="net_modes">
-        <item>User (NAT — no root)</item><item>TAP</item><item>Bridge</item><item>Socket</item>
+    <!-- LoongArch -->
+    <string-array name="machine_loong">
+        <item>virt (recommended)</item>
+        <item>custom</item>
     </string-array>
-    <string-array name="accel_types">
+    <!-- Other / fallback -->
+    <string-array name="machine_generic">
+        <item>virt</item>
+        <item>custom</item>
+    </string-array>
+
+    <!-- ── CPU models per arch ───────────────────────────────────────── -->
+    <!-- x86_64 -->
+    <string-array name="cpu_x86_64">
+        <item>max (all host features)</item>
+        <item>host (pass-through KVM)</item>
+        <item>qemu64</item>
+        <item>kvm64</item>
+        <item>Skylake-Client</item>
+        <item>Skylake-Server</item>
+        <item>Cascadelake-Server</item>
+        <item>IceLake-Server</item>
+        <item>SapphireRapids</item>
+        <item>GraniteRapids</item>
+        <item>DiamondRapids (QEMU 10)</item>
+        <item>Clearwater Forest (QEMU 10)</item>
+        <item>Sierra Forest v2 (QEMU 10)</item>
+        <item>EPYC</item>
+        <item>EPYC-v4</item>
+        <item>Opteron_G5</item>
+        <item>Broadwell</item>
+        <item>Haswell</item>
+        <item>IvyBridge</item>
+        <item>SandyBridge</item>
+        <item>Westmere</item>
+        <item>Nehalem</item>
+        <item>Penryn</item>
+        <item>core2duo</item>
+        <item>486</item>
+    </string-array>
+    <!-- i386 -->
+    <string-array name="cpu_i386">
+        <item>max</item>
+        <item>qemu32</item>
+        <item>486</item>
+        <item>pentium</item>
+        <item>pentium2</item>
+        <item>pentium3</item>
+        <item>coreduo</item>
+        <item>Haswell-noTSX</item>
+    </string-array>
+    <!-- aarch64 -->
+    <string-array name="cpu_aarch64">
+        <item>max (all extensions)</item>
+        <item>host (KVM pass-through)</item>
+        <item>cortex-a76</item>
+        <item>cortex-a78</item>
+        <item>cortex-a710</item>
+        <item>cortex-a715</item>
+        <item>cortex-a55</item>
+        <item>cortex-a53</item>
+        <item>cortex-a35</item>
+        <item>neoverse-v1</item>
+        <item>neoverse-v2</item>
+        <item>neoverse-n1</item>
+        <item>neoverse-n2</item>
+        <item>a64fx</item>
+    </string-array>
+    <!-- ARM 32-bit -->
+    <string-array name="cpu_arm">
+        <item>max</item>
+        <item>cortex-a15</item>
+        <item>cortex-a9</item>
+        <item>cortex-a8</item>
+        <item>cortex-a7</item>
+        <item>arm1176</item>
+        <item>arm926</item>
+    </string-array>
+    <!-- RISC-V 64 -->
+    <string-array name="cpu_riscv64">
+        <item>max</item>
+        <item>rv64</item>
+        <item>sifive-u54</item>
+        <item>sifive-e51</item>
+        <item>thead-c906</item>
+        <item>veyron-v1</item>
+    </string-array>
+    <!-- RISC-V 32 -->
+    <string-array name="cpu_riscv32">
+        <item>max</item>
+        <item>rv32</item>
+        <item>sifive-e31</item>
+    </string-array>
+    <!-- MIPS -->
+    <string-array name="cpu_mips">
+        <item>mips32r6-generic</item>
+        <item>P5600</item>
+        <item>I7200</item>
+        <item>24Kf</item>
+        <item>4Kc</item>
+    </string-array>
+    <!-- PowerPC -->
+    <string-array name="cpu_ppc">
+        <item>max</item>
+        <item>POWER10</item>
+        <item>POWER9</item>
+        <item>POWER8</item>
+        <item>970fx</item>
+        <item>G4</item>
+        <item>G3</item>
+    </string-array>
+    <!-- s390x -->
+    <string-array name="cpu_s390">
+        <item>max</item>
+        <item>qemu</item>
+        <item>gen17 (QEMU 10)</item>
+        <item>gen16</item>
+        <item>gen15</item>
+    </string-array>
+    <!-- LoongArch -->
+    <string-array name="cpu_loong">
+        <item>max</item>
+        <item>la464</item>
+    </string-array>
+    <!-- Generic fallback -->
+    <string-array name="cpu_generic">
+        <item>max</item>
+    </string-array>
+
+    <!-- ── GPU types per arch ─────────────────────────────────────────── -->
+    <!-- x86 GPUs -->
+    <string-array name="gpu_x86">
+        <item>VirtIO GPU (2D)</item>
+        <item>VirtIO GPU GL (VirGL/3D)</item>
+        <item>VirtIO GPU Rutabaga</item>
+        <item>VirtIO GPU NativeCtx (QEMU 11)</item>
+        <item>QXL (SPICE)</item>
+        <item>VMware SVGA</item>
+        <item>Cirrus (legacy)</item>
+        <item>VGA (legacy)</item>
+        <item>ramfb</item>
+        <item>None (headless)</item>
+    </string-array>
+    <!-- ARM GPUs -->
+    <string-array name="gpu_arm">
+        <item>VirtIO GPU (2D)</item>
+        <item>VirtIO GPU GL (VirGL/3D)</item>
+        <item>VirtIO GPU Rutabaga</item>
+        <item>VirtIO GPU NativeCtx (QEMU 11)</item>
+        <item>ramfb</item>
+        <item>None (headless)</item>
+    </string-array>
+    <!-- Minimal arch GPUs -->
+    <string-array name="gpu_minimal">
+        <item>VirtIO GPU (2D)</item>
+        <item>ramfb</item>
+        <item>None (headless)</item>
+    </string-array>
+
+    <!-- ── Audio types per arch ───────────────────────────────────────── -->
+    <string-array name="audio_x86">
+        <item>Intel HDA (recommended)</item>
+        <item>AC97</item>
+        <item>SB16 (legacy)</item>
+        <item>VirtIO Sound (QEMU 8+)</item>
+        <item>None</item>
+    </string-array>
+    <string-array name="audio_arm">
+        <item>VirtIO Sound (QEMU 8+)</item>
+        <item>Intel HDA</item>
+        <item>None</item>
+    </string-array>
+    <string-array name="audio_generic">
+        <item>VirtIO Sound (QEMU 8+)</item>
+        <item>None</item>
+    </string-array>
+
+    <!-- ── Accelerators per arch ─────────────────────────────────────── -->
+    <string-array name="accel_x86">
         <item>TCG (software — works everywhere)</item>
         <item>KVM (hardware — requires /dev/kvm)</item>
-        <item>KVM + LBT (LoongArch silicon translation)</item>
+        <item>WHPX (Windows Hypervisor Platform)</item>
+        <item>Nitro (AWS Nitro Enclave — QEMU 11)</item>
+        <item>MSHV (Microsoft Hyper-V — QEMU 11)</item>
     </string-array>
+    <string-array name="accel_arm">
+        <item>TCG (software — works everywhere)</item>
+        <item>KVM (hardware — requires /dev/kvm)</item>
+        <item>HVF (Apple Hypervisor — macOS only)</item>
+        <item>KVM + LBT (LoongArch silicon BT)</item>
+    </string-array>
+    <string-array name="accel_generic">
+        <item>TCG (software — works everywhere)</item>
+        <item>KVM (hardware — requires /dev/kvm)</item>
+    </string-array>
+
+    <!-- ── Other arrays ───────────────────────────────────────────────── -->
+    <string-array name="disk_formats">
+        <item>qcow2 (recommended)</item>
+        <item>raw</item>
+        <item>vmdk (VMware)</item>
+        <item>vdi (VirtualBox)</item>
+    </string-array>
+    <string-array name="boot_orders">
+        <item>cd (CD first)</item>
+        <item>dc (Disk first)</item>
+        <item>c (Disk only)</item>
+        <item>d (CD only)</item>
+    </string-array>
+    <string-array name="display_types">
+        <item>SDL (recommended)</item>
+        <item>GTK</item>
+        <item>SPICE</item>
+        <item>VNC</item>
+        <item>EGL (headless GL)</item>
+        <item>Headless</item>
+    </string-array>
+
+    <!-- ── Network modes ────────────────────────────────────────────── -->
+    <string-array name="net_modes">
+        <item>User (NAT — no root)</item>
+        <item>TAP</item>
+        <item>Bridge</item>
+        <item>Socket</item>
+    </string-array>
+
 </resources>

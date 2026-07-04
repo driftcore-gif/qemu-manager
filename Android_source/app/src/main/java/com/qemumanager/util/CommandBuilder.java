@@ -128,32 +128,61 @@ public class CommandBuilder {
         List<String> args = new ArrayList<>();
 
         if (vm.mode == VMConfig.VMMode.UserMode) {
-            if (!vm.extraArgs.isEmpty())
-                args.addAll(Arrays.asList(vm.extraArgs.trim().split("\\s+")));
-            return args;
+                    // QEMU 10.2: 9pfs VirtFS
+        if (vm.virtfsDriver != VMConfig.VirtFSDriver.None && !vm.virtfsPath.isEmpty()) {
+            args.add("-virtfs");
+            args.add("local,path=" + vm.virtfsPath
+                + ",mount_tag=" + vm.virtfsMountTag
+                + ",security_model=mapped-xattr,id=virtfs0");
         }
 
+        // QEMU 10.2: CPR-exec live migration
+        if (vm.migrationMode == VMConfig.MigrationMode.CprExec) {
+            args.add("-action"); args.add("reboot=none");
+            args.add("-only-migratable");
+            args.add("-incoming"); args.add("defer");
+        }
+
+        // QEMU 11: io_uring iothread
+        if (vm.ioUringLoop) {
+            args.add("-object"); args.add("iothread,id=io0");
+        }
+
+        if (!vm.extraArgs.isEmpty())
+            args.addAll(Arrays.asList(vm.extraArgs.trim().split("\s+")));
+
+        return args;
+    }
+
         // Machine
-        String[] machMap = {"pc","q35","virt","microvm",""};
+        String[] machMap = {"pc","q35","virt","microvm",
+            "sbsa-ref","virt,acpi=on","microvm,x-option-roms=off,isa-serial=off,pit=off,pic=off",
+            "nitro-enclave","amd-versal2-virt",""};
         String mach = (vm.machine == VMConfig.MachineType.custom)
-            ? vm.machineCustom : machMap[vm.machine.ordinal()];
+            ? vm.machineCustom : machMap[Math.min(vm.machine.ordinal(), machMap.length-1)];
         if (mach.isEmpty()) mach = "q35";
         args.add("-machine"); args.add(mach);
 
-        // Accelerator
-        switch (vm.accel) {
-            case TCG:
-                args.add("-accel"); args.add("tcg,thread=multi");
-                args.add("-cpu"); args.add(vm.cpuModel);
-                break;
-            case KVM:
-                args.add("-accel"); args.add("kvm");
-                args.add("-cpu"); args.add(vm.cpuModel);
-                break;
-            case KVM_LBT:
-                args.add("-accel"); args.add("kvm");
-                args.add("-cpu"); args.add(vm.cpuModel + ",lbt=on");
-                break;
+        // Accelerator + CPU (QEMU 11 full set)
+        {
+            String cpuStr = !vm.x86CpuGen.isEmpty() ? vm.x86CpuGen : vm.cpuModel;
+            switch (vm.accel) {
+                case TCG:   args.add("-accel"); args.add("tcg,thread=" + (vm.tcgMttcg?"multi":"single")); break;
+                case KVM:   args.add("-accel"); args.add("kvm"); break;
+                case KVM_LBT: args.add("-accel"); args.add("kvm"); cpuStr += ",lbt=on"; break;
+                case WHPX:  args.add("-accel"); args.add("whpx"); break;
+                case HVF:   args.add("-accel"); args.add("hvf"); break;
+                case NVMM:  args.add("-accel"); args.add("nvmm"); break;
+                case Xen:   args.add("-accel"); args.add("xen"); break;
+                case Nitro: args.add("-accel"); args.add("nitro"); break;  // QEMU 11
+                case MSHV:  args.add("-accel"); args.add("mshv"); break;  // QEMU 11
+            }
+            if (vm.kvmCet && (vm.accel == VMConfig.Accelerator.KVM || vm.accel == VMConfig.Accelerator.KVM_LBT))
+                cpuStr += ",cet=on";
+            if (vm.kvmNested && vm.accel == VMConfig.Accelerator.KVM)
+                cpuStr += ",vmx=on";
+            if (!vm.cpuFlags.isEmpty()) cpuStr += "," + vm.cpuFlags;
+            args.add("-cpu"); args.add(cpuStr);
         }
 
         args.add("-smp");

@@ -14,8 +14,8 @@ static const char* archStr(VMArch a){
     int i=(int)a; return(i>=0&&i<35)?t[i]:"x86_64";
 }
 static const char* machStr(MachineType m){
-    static const char* t[]={"pc","q35","virt","microvm","sbsa_ref","virt_acpi","x86_64_microvm","nitro_enclave","custom"};
-    return t[(int)m<9?(int)m:1];
+    static const char* t[]={"pc","q35","virt","microvm","sbsa_ref","virt_acpi","x86_64_microvm","nitro_enclave","amd_versal2_virt","custom"};
+    return t[(int)m<10?(int)m:1];
 }
 static const char* dispStr(DisplayType d){
     static const char* t[]={"gtk","sdl","spice","vnc","egl","dbus","headless"};
@@ -109,6 +109,11 @@ std::string vmToJson(const VMConfig& vm) {
   j<<"  \"conf_vm\": \"" <<(vm.conf_vm==ConfidentialVM::SEV_SNP?"SEV_SNP":vm.conf_vm==ConfidentialVM::TDX?"TDX":"None")<<"\"," <<"\n";
   j<<"  \"scsi_multiqueue\": "<<(vm.scsi_multiqueue?"true":"false")<<",\n";
   j<<"  \"riscv_iommu\": "<<(vm.riscv_iommu?"true":"false")<<",\n";
+  j<<"  \"virtfs_driver\": "<<(int)vm.virtfs_driver<<",\n";
+  j<<"  \"virtfs_path\": \"" <<esc(vm.virtfs_path)<<"\"," <<"\n";
+  j<<"  \"virtfs_mount_tag\": \"" <<esc(vm.virtfs_mount_tag)<<"\"," <<"\n";
+  j<<"  \"migration_mode\": "<<(int)vm.migration_mode<<",\n";
+  j<<"  \"io_uring_loop\": "<<(vm.io_uring_loop?"true":"false")<<",\n";
     j<<"  \"usb_version\": \""<<usbVerStr(vm.usb_version)<<"\",\n";
     j<<"  \"usb_tablet\": "<<(vm.usb_tablet?"true":"false")<<",\n";
     j<<"  \"net_mode\": \""<<netStr(vm.net_mode)<<"\",\n";
@@ -178,6 +183,11 @@ VMConfig vmFromJson(const std::string& s) {
     vm.ram_mb=jsonInt(s,"ram_mb",2048); vm.ballooning=jsonBool(s,"ballooning");
     vm.kvm_cet=jsonBool(s,"kvm_cet"); vm.x86_cpu_gen=jsonStr(s,"x86_cpu_gen");
     vm.scsi_multiqueue=jsonBool(s,"scsi_multiqueue"); vm.riscv_iommu=jsonBool(s,"riscv_iommu");
+    vm.virtfs_driver=(VirtFSDriver)jsonInt(s,"virtfs_driver");
+    vm.virtfs_path=jsonStr(s,"virtfs_path");
+    vm.virtfs_mount_tag=jsonStr(s,"virtfs_mount_tag","host_share");
+    vm.migration_mode=(MigrationMode)jsonInt(s,"migration_mode");
+    vm.io_uring_loop=jsonBool(s,"io_uring_loop");
     vm.gpu_extra_outputs=jsonStr(s,"gpu_extra_outputs");
     std::string cvm=jsonStr(s,"conf_vm");
     if(cvm=="SEV_SNP") vm.conf_vm=ConfidentialVM::SEV_SNP;

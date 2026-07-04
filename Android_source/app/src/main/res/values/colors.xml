@@ -5,4 +5,12 @@
     <color name="colorAccent">#4FC3F7</color>
     <color name="colorRunning">#4CAF50</color>
     <color name="colorStopped">#BDBDBD</color>
+
+    <!-- Global text colours -->
+    <color name="textPrimary">#FFFFFF</color>
+    <color name="textSecondary">#B0BEC5</color>
+    <color name="textHint">#607080</color>
+    <color name="divider">#2A3845</color>
+    <color name="cardBg">#1E2D3D</color>
+    <color name="inputBg">#0D1B29</color>
 </resources>

@@ -27,6 +27,7 @@ enum class MachineType {
     virt_acpi,          // QEMU 11: virt with ACPI
     x86_64_microvm,     // optimised microvm for x86
     nitro_enclave,      // QEMU 11: AWS Nitro Enclave machine type
+    amd_versal2_virt,   // QEMU 10.2: AMD Versal2 virtual platform
     custom
 };
 
@@ -55,6 +56,12 @@ enum class AudioType { IntelHDA, AC97, SB16, VirtIO_Sound, None };
 
 // ── Network ───────────────────────────────────────────────────────────
 enum class NetworkMode { User, TAP, Bridge, Socket, VDE, VirtIO_VHostNet };
+
+// ── 9pfs / Plan9 virtfs (QEMU 10.2: FreeBSD host support) ─────────────
+enum class VirtFSDriver { None, Local_9P, Proxy_9P };
+
+// ── Live migration mode (QEMU 10.2: cpr-exec) ─────────────────────────
+enum class MigrationMode { None, CprExec, SaveVM };
 
 // ── Storage ───────────────────────────────────────────────────────────
 enum class DiskFormat    { qcow2, raw, vmdk, vdi };
@@ -164,6 +171,17 @@ struct VMConfig {
     bool        scsi_multiqueue = false;
     // QEMU 11: RISC-V IOMMU sys device
     bool        riscv_iommu = false;
+
+    // QEMU 10.2: 9pfs virtfs shared filesystem (FreeBSD + Linux host)
+    VirtFSDriver virtfs_driver = VirtFSDriver::None;
+    std::string  virtfs_path;            // host path to share
+    std::string  virtfs_mount_tag = "host_share";
+
+    // QEMU 10.2: CPR-exec live migration (reduced resource usage on update)
+    MigrationMode migration_mode = MigrationMode::None;
+
+    // QEMU 10.2: io_uring main loop (performance, Linux 5.1+)
+    bool         io_uring_loop = false;
 
     // Binary
     BinaryMode  binary_mode   = BinaryMode::Auto;

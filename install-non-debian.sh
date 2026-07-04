@@ -6,7 +6,7 @@
 # ═══════════════════════════════════════════════════════════════════════
 set -euo pipefail
 
-VERSION="9.0-1"
+VERSION="10.0-1"
 REPO="driftcore-gif/qemu-manager"
 PREFIX="${PREFIX:-/usr/local}"
 

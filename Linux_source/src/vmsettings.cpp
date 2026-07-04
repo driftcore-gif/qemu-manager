@@ -47,7 +47,7 @@ void VMSettingsDialog::populateFromVM() {
     gtk_drop_down_set_selected(GTK_DROP_DOWN(arch_combo), (guint)vm_ref.arch);
     gtk_drop_down_set_selected(GTK_DROP_DOWN(mode_combo), vm_ref.mode == VMMode::UserMode ? 1 : 0);
     
-    const MachineType mt[] = {MachineType::q35,MachineType::pc,MachineType::virt,MachineType::microvm,MachineType::sbsa_ref,MachineType::virt_acpi,MachineType::x86_64_microvm,MachineType::nitro_enclave,MachineType::custom};
+    const MachineType mt[] = {MachineType::q35,MachineType::pc,MachineType::virt,MachineType::microvm,MachineType::sbsa_ref,MachineType::virt_acpi,MachineType::x86_64_microvm,MachineType::nitro_enclave,MachineType::amd_versal2_virt,MachineType::custom};
     for (int i = 0; i < 5; i++) if (mt[i] == vm_ref.machine) { gtk_drop_down_set_selected(GTK_DROP_DOWN(mach_combo), i); break; }
     if (vm_ref.machine == MachineType::custom) {
         gtk_editable_set_text(GTK_EDITABLE(mach_custom), vm_ref.machine_custom.c_str());
@@ -86,6 +86,13 @@ void VMSettingsDialog::populateFromVM() {
     gtk_drop_down_set_selected(GTK_DROP_DOWN(conf_vm_combo), (guint)vm_ref.conf_vm);
     gtk_check_button_set_active(GTK_CHECK_BUTTON(scsi_mq_check), vm_ref.scsi_multiqueue);
     gtk_check_button_set_active(GTK_CHECK_BUTTON(riscv_iommu_check), vm_ref.riscv_iommu);
+    // QEMU 10.2
+    gtk_check_button_set_active(GTK_CHECK_BUTTON(io_uring_check), vm_ref.io_uring_loop);
+    gtk_drop_down_set_selected(GTK_DROP_DOWN(migration_combo), (guint)vm_ref.migration_mode);
+    if(virtfs_path_entry && !vm_ref.virtfs_path.empty())
+        gtk_editable_set_text(GTK_EDITABLE(virtfs_path_entry), vm_ref.virtfs_path.c_str());
+    if(virtfs_tag_entry)
+        gtk_editable_set_text(GTK_EDITABLE(virtfs_tag_entry), vm_ref.virtfs_mount_tag.c_str());
     
     if (vm_ref.binary_mode == BinaryMode::Custom) {
         gtk_editable_set_text(GTK_EDITABLE(custom_bin_entry), vm_ref.custom_binary.c_str());
@@ -128,7 +135,7 @@ void VMSettingsDialog::buildPages() {
         static const char* mode_names[] = {"System (softmmu)", "User mode (linux-user)", nullptr};
         mode_combo = gtk_drop_down_new_from_strings(mode_names);
         row("Mode:", mode_combo);
-        static const char* mach_names[] = {"q35","pc","virt","microvm","custom",nullptr};
+        static const char* mach_names[] = {"q35","pc","virt","microvm","sbsa-ref","virt+ACPI","x86-microvm","nitro-enclave","amd-versal2-virt","custom",nullptr};
         mach_combo = gtk_drop_down_new_from_strings(mach_names);
         row("Machine:", mach_combo);
         mach_custom = gtk_entry_new();
@@ -380,7 +387,26 @@ void VMSettingsDialog::buildPages() {
         gtk_grid_attach(GTK_GRID(g), scsi_mq_check, 0, r, 2, 1); r++;
 
         riscv_iommu_check = gtk_check_button_new_with_label("RISC-V IOMMU sys device (riscv-iommu-sys, QEMU 11)");
-        gtk_grid_attach(GTK_GRID(g), riscv_iommu_check, 0, r, 2, 1);
+        gtk_grid_attach(GTK_GRID(g), riscv_iommu_check, 0, r, 2, 1); r++;
+
+        // ── QEMU 10.2: io_uring + CPR-exec migration + 9pfs ────────────
+        io_uring_check = gtk_check_button_new_with_label("io_uring main loop (Linux 5.1+, QEMU 10.2 perf boost)");
+        gtk_grid_attach(GTK_GRID(g), io_uring_check, 0, r, 2, 1); r++;
+
+        static const char* mig_names[] = {"None","CPR-exec (live update, QEMU 10.2)","SaveVM",nullptr};
+        migration_combo = gtk_drop_down_new_from_strings(mig_names);
+        gtk_widget_set_hexpand(migration_combo, TRUE);
+        {auto* lm = make_label("Migration mode:"); gtk_grid_attach(GTK_GRID(g),lm,0,r,1,1); gtk_grid_attach(GTK_GRID(g),migration_combo,1,r,1,1); r++;}
+
+        virtfs_path_entry = gtk_entry_new();
+        gtk_entry_set_placeholder_text(GTK_ENTRY(virtfs_path_entry), "/path/to/share  (blank = disabled)");
+        gtk_widget_set_hexpand(virtfs_path_entry, TRUE);
+        {auto* lp = make_label("9pfs VirtFS host path:"); gtk_grid_attach(GTK_GRID(g),lp,0,r,1,1); gtk_grid_attach(GTK_GRID(g),virtfs_path_entry,1,r,1,1); r++;}
+
+        virtfs_tag_entry = gtk_entry_new();
+        gtk_entry_set_placeholder_text(GTK_ENTRY(virtfs_tag_entry), "host_share");
+        gtk_widget_set_hexpand(virtfs_tag_entry, TRUE);
+        {auto* lt = make_label("9pfs mount tag:"); gtk_grid_attach(GTK_GRID(g),lt,0,r,1,1); gtk_grid_attach(GTK_GRID(g),virtfs_tag_entry,1,r,1,1); r++;}
 
         add("Hardware", g);
     }
@@ -437,7 +463,7 @@ VMConfig VMSettingsDialog::collectConfig() {
     c.arch = (VMArch)gtk_drop_down_get_selected(GTK_DROP_DOWN(arch_combo));
     c.mode = gtk_drop_down_get_selected(GTK_DROP_DOWN(mode_combo)) == 1 ? VMMode::UserMode : VMMode::System;
     int mi = gtk_drop_down_get_selected(GTK_DROP_DOWN(mach_combo));
-    const MachineType mt[] = {MachineType::q35,MachineType::pc,MachineType::virt,MachineType::microvm,MachineType::sbsa_ref,MachineType::virt_acpi,MachineType::x86_64_microvm,MachineType::nitro_enclave,MachineType::custom};
+    const MachineType mt[] = {MachineType::q35,MachineType::pc,MachineType::virt,MachineType::microvm,MachineType::sbsa_ref,MachineType::virt_acpi,MachineType::x86_64_microvm,MachineType::nitro_enclave,MachineType::amd_versal2_virt,MachineType::custom};
     c.machine = mt[mi < 5 ? mi : 0];
     if (c.machine == MachineType::custom)
         c.machine_custom = gtk_editable_get_text(GTK_EDITABLE(mach_custom));
@@ -485,6 +511,14 @@ VMConfig VMSettingsDialog::collectConfig() {
     c.conf_vm = (ConfidentialVM)gtk_drop_down_get_selected(GTK_DROP_DOWN(conf_vm_combo));
     c.scsi_multiqueue = gtk_check_button_get_active(GTK_CHECK_BUTTON(scsi_mq_check));
     c.riscv_iommu = gtk_check_button_get_active(GTK_CHECK_BUTTON(riscv_iommu_check));
+    // QEMU 10.2 new fields
+    c.io_uring_loop   = gtk_check_button_get_active(GTK_CHECK_BUTTON(io_uring_check));
+    c.migration_mode  = (MigrationMode)gtk_drop_down_get_selected(GTK_DROP_DOWN(migration_combo));
+    const char* vp = gtk_editable_get_text(GTK_EDITABLE(virtfs_path_entry));
+    c.virtfs_path = vp ? vp : "";
+    const char* vt = gtk_editable_get_text(GTK_EDITABLE(virtfs_tag_entry));
+    c.virtfs_mount_tag = (vt && *vt) ? vt : "host_share";
+    c.virtfs_driver = c.virtfs_path.empty() ? VirtFSDriver::None : VirtFSDriver::Local_9P;
 
     // Preserve vm_dir and disk_path
     c.vm_dir = vm_ref.vm_dir;
