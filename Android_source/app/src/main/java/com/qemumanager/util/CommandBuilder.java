@@ -8,17 +8,16 @@ import java.util.List;
 
 public class CommandBuilder {
 
-    // Known QEMU binary search paths — covers native Android, Termux, and PRoot
     private static final String[] BIN_PATHS = {
-        "/usr/bin",                               // Standard Linux / PRoot
-        "/data/data/com.termux/files/usr/bin",    // Termux native
-        "/system/bin",                            // Android system (unlikely but check)
-        "/vendor/bin"                             // Android vendor
+        "/usr/bin",
+        "/data/data/com.termux/files/usr/bin",
+        "/system/bin",
+        "/vendor/bin"
     };
 
     private static final String[] SYSTEM_BINS = {
         "qemu-system-x86_64","qemu-system-i386",
-        "qemu-system-aarch64","qemu-system-arm","qemu-system-arm",
+        "qemu-system-aarch64","qemu-system-arm","qemu-system-armeb",
         "qemu-system-riscv64","qemu-system-riscv32",
         "qemu-system-mips","qemu-system-mipsel",
         "qemu-system-mips64","qemu-system-mips64el",
@@ -33,6 +32,7 @@ public class CommandBuilder {
         "qemu-system-tricore","qemu-system-rx",
         "qemu-system-avr","qemu-system-hexagon"
     };
+
     private static final String[] USER_BINS = {
         "qemu-x86_64","qemu-i386",
         "qemu-aarch64","qemu-arm","qemu-armeb",
@@ -48,16 +48,14 @@ public class CommandBuilder {
         "qemu-tricore","qemu-rx","qemu-avr","qemu-hexagon"
     };
 
-    /** Returns the first existing binary directory, or /usr/bin as fallback. */
     public static String getBinDir() {
         for (String p : BIN_PATHS) {
             File f = new File(p);
             if (f.exists() && f.isDirectory() && f.canRead()) return p;
         }
-        return "/usr/bin"; // fallback for PRoot where path may appear later
+        return "/usr/bin";
     }
 
-    /** Returns all existing, readable binary directories. */
     public static List<String> getBinDirs() {
         List<String> dirs = new ArrayList<>();
         for (String p : BIN_PATHS) {
@@ -71,19 +69,16 @@ public class CommandBuilder {
     public static String archToQemuBin(VMConfig.VMArch arch, VMConfig.VMMode mode) {
         int i = arch.ordinal();
         String[] t = mode == VMConfig.VMMode.System ? SYSTEM_BINS : USER_BINS;
-        return (i >= 0 && i < t.length) ? t[i] : (mode == VMConfig.VMMode.System ? "qemu-system-x86_64" : "qemu-x86_64");
+        return (i >= 0 && i < t.length) ? t[i] : "qemu-system-x86_64";
     }
 
     public static String resolveBinary(VMConfig vm) {
         String name = (vm.binaryMode == VMConfig.BinaryMode.Custom && !vm.customBinary.isEmpty())
-            ? vm.customBinary
-            : archToQemuBin(vm.arch, vm.mode);
-        // Find which bin dir actually has it
+            ? vm.customBinary : archToQemuBin(vm.arch, vm.mode);
         for (String dir : getBinDirs()) {
             File f = new File(dir, name);
             if (f.exists()) return dir + "/" + name;
         }
-        // Fallback: use the default bin dir (may not exist yet — PRoot may mount it later)
         return getBinDir() + "/" + name;
     }
 
@@ -105,104 +100,91 @@ public class CommandBuilder {
                 }
             }
             java.util.Collections.sort(out);
-        } catch (Exception e) {
-            // SecurityException or other — return empty list
-        }
+        } catch (Exception ignored) {}
         return out;
     }
 
     public static String validateCustomBinary(String name) {
         if (name == null || name.isEmpty()) return "Binary name is empty.";
-        if (name.contains(" "))  return "Binary name must not contain spaces.";
-        if (name.contains("/"))  return "Binary name must not contain slashes (resolved automatically).";
-        for (char c : name.toCharArray())
-            if (!Character.isLetterOrDigit(c) && c != '-' && c != '_')
-                return "Invalid character '" + c + "' in binary name.";
-        if (!name.startsWith("qemu-")) return "Binary must start with 'qemu-'.";
-        // Check all known bin dirs — binary may be in Termux or PRoot path
-        // If not found, don't block creation (user may install QEMU later or use PRoot)
+        if (name.contains(" "))  return "No spaces allowed.";
+        if (name.contains("/"))  return "No slashes allowed.";
+        if (!name.startsWith("qemu-")) return "Must start with 'qemu-'.";
         return "";
     }
 
+    // ── Build QEMU argument list ──────────────────────────────────────
     public static List<String> buildArgs(VMConfig vm) {
         List<String> args = new ArrayList<>();
 
         if (vm.mode == VMConfig.VMMode.UserMode) {
-                    // QEMU 10.2: 9pfs VirtFS
-        if (vm.virtfsDriver != VMConfig.VirtFSDriver.None && !vm.virtfsPath.isEmpty()) {
-            args.add("-virtfs");
-            args.add("local,path=" + vm.virtfsPath
-                + ",mount_tag=" + vm.virtfsMountTag
-                + ",security_model=mapped-xattr,id=virtfs0");
+            if (!vm.extraArgs.isEmpty())
+                args.addAll(Arrays.asList(vm.extraArgs.trim().split("[ \t]+")));
+            return args;
         }
-
-        // QEMU 10.2: CPR-exec live migration
-        if (vm.migrationMode == VMConfig.MigrationMode.CprExec) {
-            args.add("-action"); args.add("reboot=none");
-            args.add("-only-migratable");
-            args.add("-incoming"); args.add("defer");
-        }
-
-        // QEMU 11: io_uring iothread
-        if (vm.ioUringLoop) {
-            args.add("-object"); args.add("iothread,id=io0");
-        }
-
-        if (!vm.extraArgs.isEmpty())
-            args.addAll(Arrays.asList(vm.extraArgs.trim().split("\s+")));
-
-        return args;
-    }
 
         // Machine
-        String[] machMap = {"pc","q35","virt","microvm",
-            "sbsa-ref","virt,acpi=on","microvm,x-option-roms=off,isa-serial=off,pit=off,pic=off",
-            "nitro-enclave","amd-versal2-virt",""};
+        String[] machMap = {
+            "pc","q35","virt","microvm",
+            "sbsa-ref",                 // sbsa_ref
+            "virt,acpi=on",             // virt_acpi
+            "microvm,x-option-roms=off",// x86_64_microvm
+            "nitro-enclave",            // nitro_enclave
+            ""                          // custom
+        };
         String mach = (vm.machine == VMConfig.MachineType.custom)
-            ? vm.machineCustom : machMap[Math.min(vm.machine.ordinal(), machMap.length-1)];
-        if (mach.isEmpty()) mach = "q35";
+            ? vm.machineCustom
+            : machMap[Math.min(vm.machine.ordinal(), machMap.length - 1)];
+        if (mach == null || mach.isEmpty()) mach = "q35";
         args.add("-machine"); args.add(mach);
 
-        // Accelerator + CPU (QEMU 11 full set)
-        {
-            String cpuStr = !vm.x86CpuGen.isEmpty() ? vm.x86CpuGen : vm.cpuModel;
-            switch (vm.accel) {
-                case TCG:   args.add("-accel"); args.add("tcg,thread=" + (vm.tcgMttcg?"multi":"single")); break;
-                case KVM:   args.add("-accel"); args.add("kvm"); break;
-                case KVM_LBT: args.add("-accel"); args.add("kvm"); cpuStr += ",lbt=on"; break;
-                case WHPX:  args.add("-accel"); args.add("whpx"); break;
-                case HVF:   args.add("-accel"); args.add("hvf"); break;
-                case NVMM:  args.add("-accel"); args.add("nvmm"); break;
-                case Xen:   args.add("-accel"); args.add("xen"); break;
-                case Nitro: args.add("-accel"); args.add("nitro"); break;  // QEMU 11
-                case MSHV:  args.add("-accel"); args.add("mshv"); break;  // QEMU 11
-            }
-            if (vm.kvmCet && (vm.accel == VMConfig.Accelerator.KVM || vm.accel == VMConfig.Accelerator.KVM_LBT))
-                cpuStr += ",cet=on";
-            if (vm.kvmNested && vm.accel == VMConfig.Accelerator.KVM)
-                cpuStr += ",vmx=on";
-            if (!vm.cpuFlags.isEmpty()) cpuStr += "," + vm.cpuFlags;
-            args.add("-cpu"); args.add(cpuStr);
+        // Accelerator
+        String cpuStr = (!vm.x86CpuGen.isEmpty()) ? vm.x86CpuGen : vm.cpuModel;
+        switch (vm.accel) {
+            case TCG:     args.add("-accel"); args.add("tcg,thread=" + (vm.tcgMttcg ? "multi" : "single")); break;
+            case KVM:     args.add("-accel"); args.add("kvm"); break;
+            case KVM_LBT: args.add("-accel"); args.add("kvm"); cpuStr += ",lbt=on"; break;
+            case WHPX:    args.add("-accel"); args.add("whpx"); break;
+            case HVF:     args.add("-accel"); args.add("hvf"); break;
+            case NVMM:    args.add("-accel"); args.add("nvmm"); break;
+            case Xen:     args.add("-accel"); args.add("xen"); break;
+            case Nitro:   args.add("-accel"); args.add("nitro"); break;
+            case MSHV:    args.add("-accel"); args.add("mshv"); break;
         }
+        if (vm.kvmCet && (vm.accel == VMConfig.Accelerator.KVM || vm.accel == VMConfig.Accelerator.KVM_LBT))
+            cpuStr += ",cet=on";
+        if (vm.kvmNested && vm.accel == VMConfig.Accelerator.KVM)
+            cpuStr += ",vmx=on";
+        if (!vm.cpuFlags.isEmpty()) cpuStr += "," + vm.cpuFlags;
+        args.add("-cpu"); args.add(cpuStr);
 
+        // SMP
         args.add("-smp");
-        args.add(vm.sockets*vm.cores*vm.threads
+        args.add(vm.sockets * vm.cores * vm.threads
             + ",sockets=" + vm.sockets
-            + ",cores="   + vm.cores
+            + ",cores=" + vm.cores
             + ",threads=" + vm.threads);
 
         // RAM
         args.add("-m"); args.add(String.valueOf(vm.ramMb));
         if (vm.ballooning) { args.add("-device"); args.add("virtio-balloon-pci"); }
 
-        // UEFI
+        // UEFI / firmware
         if (vm.uefi) { args.add("-bios"); args.add("/usr/share/ovmf/OVMF.fd"); }
 
         // Disk
         if (!vm.diskPath.isEmpty()) {
             String[] fmts = {"qcow2","raw","vmdk","vdi"};
+            String fmt = fmts[Math.min(vm.diskFormat.ordinal(), 3)];
             args.add("-drive");
-            args.add("file=" + vm.diskPath + ",if=virtio,format=" + fmts[vm.diskFormat.ordinal()]);
+            args.add("file=" + vm.diskPath + ",if=virtio,format=" + fmt
+                + (vm.diskDiscard ? ",discard=unmap" : ""));
+        }
+
+        // SCSI controller + multiqueue
+        if (vm.useScsiCtrl) {
+            String scsi = "virtio-scsi-pci,id=scsi0";
+            if (vm.scsiMultiqueue) scsi += ",num-queues=" + (vm.sockets * vm.cores * vm.threads);
+            args.add("-device"); args.add(scsi);
         }
 
         // ISO
@@ -217,73 +199,124 @@ public class CommandBuilder {
 
         // Display
         String[] dispMap = {"sdl","gtk","spice-app","vnc=:0","egl-headless","none"};
-        args.add("-display"); args.add(dispMap[vm.display.ordinal()]);
+        args.add("-display");
+        args.add(dispMap[Math.min(vm.display.ordinal(), dispMap.length - 1)]);
 
         // GPU
-        String[] gpuMap = {"VGA","virtio-gpu-pci","qxl-vga","cirrus-vga","vmware-svga",""};
-        if (vm.gpu != VMConfig.GPUType.None) {
-            args.add("-device"); args.add(gpuMap[vm.gpu.ordinal()]);
+        switch (vm.gpu) {
+            case VGA:                   args.add("-device"); args.add("VGA"); break;
+            case VirtIO_GPU:            args.add("-device"); args.add("virtio-gpu-pci"); break;
+            case VirtIO_GPU_GL:         args.add("-device"); args.add("virtio-gpu-gl-pci"); break;
+            case VirtIO_GPU_Rutabaga:   args.add("-device"); args.add("virtio-gpu-rutabaga-pci"); break;
+            case VirtIO_GPU_NativeCtx:  args.add("-device"); args.add("virtio-gpu-pci,hostmem=256M"); break;
+            case QXL:                   args.add("-device"); args.add("qxl-vga"); break;
+            case Cirrus:                args.add("-device"); args.add("cirrus-vga"); break;
+            case VMwareSVGA:            args.add("-device"); args.add("vmware-svga"); break;
+            case ramfb:                 args.add("-device"); args.add("ramfb"); break;
+            case None: break;
+        }
+        if (vm.virglEnabled) {
+            args.add("-device"); args.add("virtio-vga-gl");
         }
 
         // Audio
         switch (vm.audio) {
             case IntelHDA:
                 args.add("-device"); args.add("intel-hda");
-                args.add("-device"); args.add("hda-duplex"); break;
+                args.add("-device"); args.add("hda-duplex");
+                break;
             case AC97:
-                args.add("-device"); args.add("AC97"); break;
+                args.add("-device"); args.add("AC97");
+                break;
             case SB16:
-                args.add("-device"); args.add("sb16"); break;
-            default: break;
+                args.add("-device"); args.add("sb16");
+                break;
+            case VirtIO_Sound:
+                args.add("-device"); args.add("virtio-sound-pci");
+                break;
+            case None: break;
         }
-
-        // USB
-        args.add("-usb");
 
         // Network
         switch (vm.net) {
             case User:
-                args.add("-netdev"); args.add("user,id=net0");
-                args.add("-device"); args.add("virtio-net-pci,netdev=net0"); break;
+                args.add("-netdev"); args.add("user,id=n0");
+                args.add("-device"); args.add("virtio-net-pci,netdev=n0");
+                break;
             case TAP:
-                args.add("-netdev"); args.add("tap,id=net0,ifname=tap0,script=no");
-                args.add("-device"); args.add("virtio-net-pci,netdev=net0"); break;
+                args.add("-netdev"); args.add("tap,id=n0,ifname=tap0,script=no,downscript=no");
+                args.add("-device"); args.add("virtio-net-pci,netdev=n0");
+                break;
             case Bridge:
-                args.add("-netdev"); args.add("bridge,id=net0,br=br0");
-                args.add("-device"); args.add("virtio-net-pci,netdev=net0"); break;
+                args.add("-netdev"); args.add("bridge,id=n0,br=br0");
+                args.add("-device"); args.add("virtio-net-pci,netdev=n0");
+                break;
             case Socket:
-                args.add("-netdev"); args.add("socket,id=net0,listen=:4444");
-                args.add("-device"); args.add("virtio-net-pci,netdev=net0"); break;
+                args.add("-netdev"); args.add("socket,id=n0,listen=:1234");
+                args.add("-device"); args.add("virtio-net-pci,netdev=n0");
+                break;
         }
 
-        // Monitor socket
-        if (!vm.vmDir.isEmpty()) {
-            args.add("-monitor"); args.add("unix:" + vm.vmDir + "/monitor.sock,server,nowait");
-            args.add("-pidfile");  args.add(vm.vmDir + "/vm.pid");
+        // IOMMU
+        switch (vm.iommu) {
+            case Intel:       args.add("-device"); args.add("intel-iommu"); break;
+            case SMMUv3:      args.add("-device"); args.add("arm-smmuv3"); break;
+            case VirtIO_IOMMU:args.add("-device"); args.add("virtio-iommu-pci"); break;
+            default: break;
+        }
+        if (vm.riscvIommu) { args.add("-device"); args.add("riscv-iommu-sys"); }
+
+        // TPM
+        switch (vm.tpm) {
+            case TIS: args.add("-chardev"); args.add("socket,id=chrtpm,path=/tmp/mytpm0/swtpm-sock");
+                      args.add("-tpmdev");  args.add("emulator,id=tpm0,chardev=chrtpm");
+                      args.add("-device");  args.add("tpm-tis,tpmdev=tpm0"); break;
+            case CRB: args.add("-chardev"); args.add("socket,id=chrtpm,path=/tmp/mytpm0/swtpm-sock");
+                      args.add("-tpmdev");  args.add("emulator,id=tpm0,chardev=chrtpm");
+                      args.add("-device");  args.add("tpm-crb,tpmdev=tpm0"); break;
+            default: break;
         }
 
-        // Extra args LAST
+        // Confidential VM (QEMU 11 KVM)
+        switch (vm.confVm) {
+            case SEV_SNP:
+                args.add("-object"); args.add("sev-snp-guest,id=sev0,cbitpos=51,reduced-phys-bits=1");
+                args.add("-machine"); args.add(mach + ",confidential-guest-support=sev0");
+                break;
+            case TDX:
+                args.add("-object"); args.add("tdx-guest,id=tdx0");
+                args.add("-machine"); args.add(mach + ",confidential-guest-support=tdx0");
+                break;
+            default: break;
+        }
+
+        // Misc flags
+        if (vm.snapshotMode) args.add("-snapshot");
+        if (vm.noReboot)     { args.add("-no-reboot"); }
+
+        // Extra args
         if (!vm.extraArgs.isEmpty())
-            args.addAll(Arrays.asList(vm.extraArgs.trim().split("\\s+")));
+            args.addAll(Arrays.asList(vm.extraArgs.trim().split("[ \t]+")));
 
         return args;
     }
 
-    public static String buildCommand(VMConfig vm) {
-        String bin = resolveBinary(vm);
-        StringBuilder sb = new StringBuilder(bin);
-        for (String a : buildArgs(vm)) sb.append(" ").append(a);
-        return sb.toString();
-    }
-
+    // ── Format as shell command string ───────────────────────────────
     public static String formatCommand(VMConfig vm) {
         String bin = resolveBinary(vm);
         List<String> args = buildArgs(vm);
         StringBuilder sb = new StringBuilder(bin);
         for (int i = 0; i < args.size(); i++) {
-            if (i % 2 == 0) sb.append(" \\\n  ").append(args.get(i));
-            else             sb.append(" ").append(args.get(i));
+            String a = args.get(i);
+            if (a.startsWith("-") && i > 0) sb.append(" \\\n  ");
+            else sb.append(" ");
+            sb.append(a.contains(" ") ? "\"" + a + "\"" : a);
         }
         return sb.toString();
+    }
+
+    // Legacy alias — same as formatCommand
+    public static String buildCommand(VMConfig vm) {
+        return formatCommand(vm);
     }
 }

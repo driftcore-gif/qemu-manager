@@ -97,4 +97,7 @@ public class VMConfigIO {
             return false;
         }
     }
+
+    // Alias for compatibility
+    public static boolean saveConfig(VMConfig vm) { return save(vm); }
 }

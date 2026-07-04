@@ -296,4 +296,46 @@
         <item>Socket</item>
     </string-array>
 
+
+    <!-- ── Backward-compat aliases (used by VMEditActivity layout) ─── -->
+    <string-array name="machine_types">
+        <item>q35 (recommended)</item>
+        <item>pc (i440fx)</item>
+        <item>virt (ARM)</item>
+        <item>microvm</item>
+        <item>sbsa-ref</item>
+        <item>virt-acpi (QEMU 11)</item>
+        <item>x86-microvm</item>
+        <item>nitro-enclave (QEMU 11)</item>
+        <item>custom</item>
+    </string-array>
+    <string-array name="gpu_types">
+        <item>VirtIO GPU (2D)</item>
+        <item>VirtIO GPU GL (VirGL/3D)</item>
+        <item>VirtIO GPU Rutabaga</item>
+        <item>VirtIO GPU NativeCtx (QEMU 11)</item>
+        <item>QXL (SPICE)</item>
+        <item>VMware SVGA</item>
+        <item>Cirrus (legacy)</item>
+        <item>VGA (legacy)</item>
+        <item>ramfb</item>
+        <item>None (headless)</item>
+    </string-array>
+    <string-array name="audio_types">
+        <item>Intel HDA</item>
+        <item>AC97</item>
+        <item>SB16 (legacy)</item>
+        <item>VirtIO Sound (QEMU 8+)</item>
+        <item>None</item>
+    </string-array>
+    <string-array name="accel_types">
+        <item>TCG (software — works everywhere)</item>
+        <item>KVM (hardware — requires /dev/kvm)</item>
+        <item>KVM + LBT (LoongArch silicon BT)</item>
+        <item>WHPX (Windows Hypervisor)</item>
+        <item>HVF (Apple Hypervisor)</item>
+        <item>Nitro (AWS Nitro — QEMU 11)</item>
+        <item>MSHV (MS Hyper-V — QEMU 11)</item>
+    </string-array>
+
 </resources>
