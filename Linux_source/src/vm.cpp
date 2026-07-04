@@ -151,6 +151,10 @@ static std::string jsonStr(const std::string& s, const std::string& key) {
     }
     return r;
 }
+static std::string jsonStr(const std::string& s, const std::string& key, const std::string& def) {
+    std::string r = jsonStr(s, key);
+    return r.empty() ? def : r;
+}
 static int jsonInt(const std::string& s, const std::string& k, int def=0){
     std::string kp="\""+k+"\": ";
     auto p=s.find(kp); if(p==std::string::npos)return def;

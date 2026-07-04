@@ -149,36 +149,194 @@ GtkWidget* VMWizard::buildMemoryPage() {
 // Storage page
 // ============================================================
 GtkWidget* VMWizard::buildStoragePage() {
-    GtkWidget* g = gtk_grid_new();
-    gtk_grid_set_row_spacing(GTK_GRID(g),10);
-    gtk_grid_set_column_spacing(GTK_GRID(g),12);
-    gtk_widget_set_margin_start(g,20); gtk_widget_set_margin_end(g,20);
-    gtk_widget_set_margin_top(g,16);
-    int r=0;
-    auto row=[&](const char* lbl, GtkWidget* w){
-        gtk_grid_attach(GTK_GRID(g),make_label(lbl),0,r,1,1);
-        gtk_widget_set_hexpand(w,TRUE);
-        gtk_grid_attach(GTK_GRID(g),w,1,r,1,1);
-        const_cast<int&>(r)++;
-    };
-    disk_size_spin = gtk_spin_button_new_with_range(1,4000,1);
-    gtk_spin_button_set_value(GTK_SPIN_BUTTON(disk_size_spin),20);
-    row("Disk Size (GB):", disk_size_spin);
-    static const char* diskfmt_names[] = {"qcow2","raw","vmdk","vdi",nullptr};
-    disk_fmt_combo = gtk_drop_down_new_from_strings(diskfmt_names);
-    row("Disk Format:", disk_fmt_combo);
-    GtkWidget* iso_box = gtk_box_new(GTK_ORIENTATION_HORIZONTAL,4);
+    // Root scrollable vbox
+    GtkWidget* outer = gtk_box_new(GTK_ORIENTATION_VERTICAL, 10);
+    gtk_widget_set_margin_start(outer, 20); gtk_widget_set_margin_end(outer, 20);
+    gtk_widget_set_margin_top(outer, 16);   gtk_widget_set_margin_bottom(outer, 16);
+
+    // ── qemu-img status ───────────────────────────────────────────────
+    disk_status_lbl = gtk_label_new("");
+    gtk_label_set_xalign(GTK_LABEL(disk_status_lbl), 0);
+    gtk_widget_set_margin_bottom(disk_status_lbl, 6);
+    // Detect qemu-img at build time
+    {
+        const char* paths[] = {"/usr/bin/qemu-img",
+                               "/usr/local/bin/qemu-img",
+                               "/data/data/com.termux/files/usr/bin/qemu-img",
+                               nullptr};
+        bool found = false;
+        std::string found_path;
+        for (int i = 0; paths[i]; i++) {
+            if (g_file_test(paths[i], G_FILE_TEST_EXISTS)) {
+                found = true; found_path = paths[i]; break;
+            }
+        }
+        if (found) {
+            gtk_label_set_markup(GTK_LABEL(disk_status_lbl),
+                ("<span foreground='#4CAF50'>✓ qemu-img: " + found_path + "</span>").c_str());
+        } else {
+            gtk_label_set_markup(GTK_LABEL(disk_status_lbl),
+                "<span foreground='#FFC107'>⚠ qemu-img not found — install QEMU first</span>");
+        }
+    }
+    gtk_box_append(GTK_BOX(outer), disk_status_lbl);
+
+    // ── Disk mode radio group ─────────────────────────────────────────
+    gtk_box_append(GTK_BOX(outer), make_label("Disk Source:"));
+
+    disk_mode_new      = gtk_check_button_new_with_label("Create new disk image");
+    disk_mode_existing = gtk_check_button_new_with_label("Use existing image file");
+    disk_mode_none     = gtk_check_button_new_with_label("No disk  (boot from ISO / RAM only)");
+
+    // Make them a radio group
+    gtk_check_button_set_group(GTK_CHECK_BUTTON(disk_mode_existing), GTK_CHECK_BUTTON(disk_mode_new));
+    gtk_check_button_set_group(GTK_CHECK_BUTTON(disk_mode_none),     GTK_CHECK_BUTTON(disk_mode_new));
+    gtk_check_button_set_active(GTK_CHECK_BUTTON(disk_mode_new), TRUE);
+
+    g_signal_connect(disk_mode_new,      "toggled", G_CALLBACK(onDiskModeChanged), this);
+    g_signal_connect(disk_mode_existing, "toggled", G_CALLBACK(onDiskModeChanged), this);
+    g_signal_connect(disk_mode_none,     "toggled", G_CALLBACK(onDiskModeChanged), this);
+
+    gtk_box_append(GTK_BOX(outer), disk_mode_new);
+    gtk_box_append(GTK_BOX(outer), disk_mode_existing);
+    gtk_box_append(GTK_BOX(outer), disk_mode_none);
+
+    // ── Panel: Create new ─────────────────────────────────────────────
+    disk_new_box = gtk_box_new(GTK_ORIENTATION_VERTICAL, 8);
+    gtk_widget_set_margin_start(disk_new_box, 16);
+    gtk_widget_set_margin_top(disk_new_box, 6);
+    gtk_widget_set_margin_bottom(disk_new_box, 6);
+    {
+        GtkWidget* grid = gtk_grid_new();
+        gtk_grid_set_row_spacing(GTK_GRID(grid), 8);
+        gtk_grid_set_column_spacing(GTK_GRID(grid), 12);
+        int r = 0;
+
+        // Size: 1–4000 GB (≈4 TB)
+        disk_size_spin = gtk_spin_button_new_with_range(1, 4000, 1);
+        gtk_spin_button_set_value(GTK_SPIN_BUTTON(disk_size_spin), 20);
+        disk_size_lbl = gtk_label_new("20 GB");
+        gtk_label_set_xalign(GTK_LABEL(disk_size_lbl), 0);
+        g_signal_connect(disk_size_spin, "value-changed", G_CALLBACK(onDiskSizeChanged), this);
+
+        gtk_widget_set_hexpand(disk_size_spin, TRUE);
+        gtk_grid_attach(GTK_GRID(grid), make_label("Disk Size:"), 0, r, 1, 1);
+        gtk_grid_attach(GTK_GRID(grid), disk_size_spin, 1, r, 1, 1);
+        gtk_grid_attach(GTK_GRID(grid), disk_size_lbl,  2, r, 1, 1);
+        r++;
+
+        static const char* diskfmt_names[] = {"qcow2 (recommended)","raw (max perf)","vmdk (VMware)","vdi (VirtualBox)",nullptr};
+        disk_fmt_combo = gtk_drop_down_new_from_strings(diskfmt_names);
+        gtk_widget_set_hexpand(disk_fmt_combo, TRUE);
+        gtk_grid_attach(GTK_GRID(grid), make_label("Format:"), 0, r, 1, 1);
+        gtk_grid_attach(GTK_GRID(grid), disk_fmt_combo, 1, r, 2, 1);
+        r++;
+
+        prealloc_check = gtk_check_button_new_with_label("Pre-allocate (raw only — faster I/O, uses full space immediately)");
+        gtk_grid_attach(GTK_GRID(grid), prealloc_check, 0, r, 3, 1);
+        r++;
+
+        GtkWidget* hint = gtk_label_new("qcow2: thin-provisioned, snapshots, zstd compression\n"
+                                        "raw: best I/O performance, no overhead\n"
+                                        "vmdk/vdi: VMware/VirtualBox compatibility");
+        gtk_label_set_xalign(GTK_LABEL(hint), 0);
+        gtk_widget_add_css_class(hint, "dim-label");
+        gtk_grid_attach(GTK_GRID(grid), hint, 0, r, 3, 1);
+
+        gtk_box_append(GTK_BOX(disk_new_box), grid);
+    }
+    gtk_box_append(GTK_BOX(outer), disk_new_box);
+
+    // ── Panel: Use existing ───────────────────────────────────────────
+    disk_existing_box = gtk_box_new(GTK_ORIENTATION_HORIZONTAL, 8);
+    gtk_widget_set_margin_start(disk_existing_box, 16);
+    gtk_widget_set_margin_top(disk_existing_box, 6);
+    gtk_widget_set_visible(disk_existing_box, FALSE);
+    {
+        existing_disk_entry = gtk_entry_new();
+        gtk_entry_set_placeholder_text(GTK_ENTRY(existing_disk_entry), "/path/to/disk.qcow2");
+        gtk_widget_set_hexpand(existing_disk_entry, TRUE);
+        GtkWidget* browse_btn = gtk_button_new_with_label("Browse…");
+        g_signal_connect(browse_btn, "clicked", G_CALLBACK(onBrowseDisk), this);
+        gtk_box_append(GTK_BOX(disk_existing_box), existing_disk_entry);
+        gtk_box_append(GTK_BOX(disk_existing_box), browse_btn);
+    }
+    gtk_box_append(GTK_BOX(outer), disk_existing_box);
+
+    // ── Separator ─────────────────────────────────────────────────────
+    gtk_box_append(GTK_BOX(outer), gtk_separator_new(GTK_ORIENTATION_HORIZONTAL));
+
+    // ── ISO / CD-ROM ──────────────────────────────────────────────────
+    gtk_box_append(GTK_BOX(outer), make_label("ISO / CD-ROM (optional):"));
+    GtkWidget* iso_box = gtk_box_new(GTK_ORIENTATION_HORIZONTAL, 4);
     iso_entry = gtk_entry_new();
-    gtk_entry_set_placeholder_text(GTK_ENTRY(iso_entry),"/path/to/install.iso");
-    gtk_widget_set_hexpand(iso_entry,TRUE);
+    gtk_entry_set_placeholder_text(GTK_ENTRY(iso_entry), "/path/to/install.iso");
+    gtk_widget_set_hexpand(iso_entry, TRUE);
     GtkWidget* browse = gtk_button_new_with_label("Browse…");
-    g_signal_connect(browse,"clicked",G_CALLBACK(onBrowseISO),this);
-    gtk_box_append(GTK_BOX(iso_box),iso_entry);
-    gtk_box_append(GTK_BOX(iso_box),browse);
-    gtk_widget_set_hexpand(iso_box,TRUE);
-    gtk_grid_attach(GTK_GRID(g),make_label("ISO Path:"),0,r,1,1);
-    gtk_grid_attach(GTK_GRID(g),iso_box,1,r,1,1);
-    return g;
+    g_signal_connect(browse, "clicked", G_CALLBACK(onBrowseISO), this);
+    gtk_box_append(GTK_BOX(iso_box), iso_entry);
+    gtk_box_append(GTK_BOX(iso_box), browse);
+    gtk_widget_set_hexpand(iso_box, TRUE);
+    gtk_box_append(GTK_BOX(outer), iso_box);
+
+    return outer;
+}
+
+// ── Disk mode changed ─────────────────────────────────────────────────
+void VMWizard::onDiskModeChanged(GtkCheckButton*, gpointer d) {
+    VMWizard* s = (VMWizard*)d;
+    if (!s->disk_new_box || !s->disk_existing_box) return;
+    bool is_new      = gtk_check_button_get_active(GTK_CHECK_BUTTON(s->disk_mode_new));
+    bool is_existing = gtk_check_button_get_active(GTK_CHECK_BUTTON(s->disk_mode_existing));
+    gtk_widget_set_visible(s->disk_new_box,      is_new);
+    gtk_widget_set_visible(s->disk_existing_box, is_existing);
+}
+
+// ── Disk size label ───────────────────────────────────────────────────
+void VMWizard::onDiskSizeChanged(GtkSpinButton* sp, gpointer d) {
+    VMWizard* s = (VMWizard*)d;
+    if (!s->disk_size_lbl) return;
+    double v = gtk_spin_button_get_value(sp);
+    char buf[32];
+    if (v >= 1024.0)
+        snprintf(buf, sizeof(buf), "%.1f TB", v / 1024.0);
+    else
+        snprintf(buf, sizeof(buf), "%.0f GB", v);
+    gtk_label_set_text(GTK_LABEL(s->disk_size_lbl), buf);
+}
+
+// ── Browse existing disk ──────────────────────────────────────────────
+void VMWizard::onBrowseDisk(GtkButton*, gpointer d) {
+    VMWizard* s = (VMWizard*)d;
+#if GTK_CHECK_VERSION(4, 10, 0)
+    GtkFileDialog* dlg = gtk_file_dialog_new();
+    gtk_file_dialog_set_title(dlg, "Select Disk Image");
+    GListStore* fs = g_list_store_new(GTK_TYPE_FILE_FILTER);
+    GtkFileFilter* f = gtk_file_filter_new();
+    gtk_file_filter_add_pattern(f, "*.qcow2");
+    gtk_file_filter_add_pattern(f, "*.raw");
+    gtk_file_filter_add_pattern(f, "*.img");
+    gtk_file_filter_add_pattern(f, "*.vmdk");
+    gtk_file_filter_add_pattern(f, "*.vdi");
+    gtk_file_filter_set_name(f, "Disk Images");
+    g_list_store_append(fs, f); g_object_unref(f);
+    gtk_file_dialog_set_filters(dlg, G_LIST_MODEL(fs)); g_object_unref(fs);
+    gtk_file_dialog_open(dlg, GTK_WINDOW(s->dialog), nullptr,
+        [](GObject* src, GAsyncResult* res, gpointer ud) {
+            GtkEntry* ent = GTK_ENTRY(ud);
+            GFile* file = gtk_file_dialog_open_finish(GTK_FILE_DIALOG(src), res, nullptr);
+            if (file) {
+                char* path = g_file_get_path(file);
+                if (path) { gtk_editable_set_text(GTK_EDITABLE(ent), path); g_free(path); }
+                g_object_unref(file);
+            }
+        }, s->existing_disk_entry);
+    g_object_unref(dlg);
+#else
+    compat_open_file_chooser(GTK_WINDOW(s->dialog), "Select Disk Image",
+        GTK_ENTRY(s->existing_disk_entry),
+        "*.qcow2;*.raw;*.img;*.vmdk;*.vdi", "Disk Images");
+#endif
 }
 
 // ============================================================
@@ -471,9 +629,15 @@ VMConfig VMWizard::collectConfig() {
     c.threads   = (int)gtk_spin_button_get_value(GTK_SPIN_BUTTON(threads_spin));
     c.ram_mb    = (int)gtk_spin_button_get_value(GTK_SPIN_BUTTON(ram_spin));
     c.ballooning = gtk_check_button_get_active(GTK_CHECK_BUTTON(balloon_check));
-    c.disk_size_gb = (int)gtk_spin_button_get_value(GTK_SPIN_BUTTON(disk_size_spin));
-    c.disk_format  = (DiskFormat)gtk_drop_down_get_selected(GTK_DROP_DOWN(disk_fmt_combo));
-    c.iso_path     = gtk_editable_get_text(GTK_EDITABLE(iso_entry));
+    // Disk mode
+    bool disk_create_new = gtk_check_button_get_active(GTK_CHECK_BUTTON(disk_mode_new));
+    bool disk_use_existing = disk_mode_existing && gtk_check_button_get_active(GTK_CHECK_BUTTON(disk_mode_existing));
+    c.disk_size_gb = disk_size_spin ? (int)gtk_spin_button_get_value(GTK_SPIN_BUTTON(disk_size_spin)) : 20;
+    c.disk_format  = disk_fmt_combo ? (DiskFormat)gtk_drop_down_get_selected(GTK_DROP_DOWN(disk_fmt_combo)) : DiskFormat::qcow2;
+    if (disk_use_existing && existing_disk_entry)
+        c.disk_path = gtk_editable_get_text(GTK_EDITABLE(existing_disk_entry));
+    // else disk_path set later in onCreateClicked based on vm_dir
+    c.iso_path = gtk_editable_get_text(GTK_EDITABLE(iso_entry));
     c.uefi         = gtk_check_button_get_active(GTK_CHECK_BUTTON(uefi_check));
     c.boot_menu    = gtk_check_button_get_active(GTK_CHECK_BUTTON(boot_menu_check));
     const char* bo[]={"cd","dc","c","d"};
@@ -509,9 +673,13 @@ VMConfig VMWizard::collectConfig() {
 
     const std::string& vf = Settings::get().vm_folder;
     c.vm_dir = vf + "/" + c.name;
-    const char* exts[]={"qcow2","raw","vmdk","vdi"};
-    int fi = (int)c.disk_format;
-    c.disk_path = c.vm_dir+"/disk."+exts[fi<4?fi:0];
+    // disk_path: only set auto-path when creating new (handled in onCreateClicked)
+    // For existing mode it's already set from the entry; for none it's empty
+    if (gtk_check_button_get_active(GTK_CHECK_BUTTON(disk_mode_new))) {
+        const char* exts[]={"qcow2","raw","vmdk","vdi"};
+        int fi = (int)c.disk_format;
+        c.disk_path = c.vm_dir+"/disk."+exts[fi<4?fi:0];
+    }
     return c;
 }
 
@@ -606,8 +774,32 @@ void VMWizard::onCreateClicked(GtkButton*,gpointer d) {
     g_mkdir_with_parents(c.vm_dir.c_str(),0755);
     g_mkdir_with_parents((c.vm_dir+"/snapshots").c_str(),0755);
     g_mkdir_with_parents((c.vm_dir+"/logs").c_str(),0755);
-    if (c.mode==VMMode::System)
-        StorageManager::createDisk(c.disk_path,c.disk_format,c.disk_size_gb);
+    // Only create disk if "create new" mode
+    if (c.mode==VMMode::System &&
+        gtk_check_button_get_active(GTK_CHECK_BUTTON(s->disk_mode_new))) {
+        const char* exts2[]={"qcow2","raw","vmdk","vdi"};
+        int fi2 = (int)c.disk_format;
+        // Map combo position (has description suffixes) → raw format index
+        // combo: 0=qcow2, 1=raw, 2=vmdk, 3=vdi
+        c.disk_path = c.vm_dir + "/disk." + exts2[fi2 < 4 ? fi2 : 0];
+        bool prealloc = s->prealloc_check &&
+            gtk_check_button_get_active(GTK_CHECK_BUTTON(s->prealloc_check));
+        std::string fmt = StorageManager::formatToStr(c.disk_format);
+        // Build qemu-img command directly for prealloc support
+        std::string cmd = "qemu-img create -f " + fmt;
+        if (fmt == "qcow2" && c.disk_size_gb >= 64)
+            cmd += " -o cluster_size=2M,compression_type=zstd";
+        else if (fmt == "raw" && prealloc)
+            cmd += " -o preallocation=full";
+        cmd += " "" + c.disk_path + "" " + std::to_string(c.disk_size_gb) + "G";
+        system(cmd.c_str());
+    } else if (c.mode==VMMode::System &&
+               s->disk_mode_existing &&
+               gtk_check_button_get_active(GTK_CHECK_BUTTON(s->disk_mode_existing))) {
+        // disk_path already set from existing_disk_entry in collectConfig
+    } else if (c.mode==VMMode::System) {
+        c.disk_path = ""; // No disk mode
+    }
     VMConfigIO::save(c);
     if (c.save_script_to_vm_folder)
         CommandBuilder::writeStartScript(c);
