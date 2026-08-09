@@ -123,11 +123,20 @@ std::string vmToJson(const VMConfig& vm) {
     j<<"  \"tpm\": \""<<tpmStr(vm.tpm)<<"\",\n";
     j<<"  \"virtio_rng\": "<<(vm.virtio_rng?"true":"false")<<",\n";
     j<<"  \"numa_enabled\": "<<(vm.numa_enabled?"true":"false")<<",\n";
-    j<<"  \"binary_mode\": \""<<(vm.binary_mode==BinaryMode::Auto?"Auto":"Custom")<<"\",\n";
-    j<<"  \"custom_binary\": \""<<esc(vm.custom_binary)<<"\",\n";
     j<<"  \"accel\": \""<<accelStr(vm.accel)<<"\",\n";
     j<<"  \"tb_size\": \""<<tbStr(vm.tb_size)<<"\",\n";
     j<<"  \"kvm_nested\": "<<(vm.kvm_nested?"true":"false")<<",\n";
+    j<<"  \"tcg_mttcg\": "<<(vm.tcg_mttcg?"true":"false")<<",\n";
+    j<<"  \"arm_sme\": "<<(vm.arm_sme?"true":"false")<<",\n";
+    j<<"  \"arm_sme2\": "<<(vm.arm_sme2?"true":"false")<<",\n";
+    j<<"  \"riscv_zilsd\": "<<(vm.riscv_zilsd?"true":"false")<<",\n";
+    j<<"  \"riscv_zclsd\": "<<(vm.riscv_zclsd?"true":"false")<<",\n";
+    j<<"  \"riscv_zalasr\": "<<(vm.riscv_zalasr?"true":"false")<<",\n";
+    j<<"  \"riscv_smpmpmt\": "<<(vm.riscv_smpmpmt?"true":"false")<<",\n";
+    j<<"  \"ppc_snapshot_devs\": "<<(vm.ppc_snapshot_devs?"true":"false")<<",\n";
+    j<<"  \"sev_snp_reset\": "<<(vm.sev_snp_reset?"true":"false")<<",\n";
+    j<<"  \"gpu_head_resolutions\": \""+esc(vm.gpu_head_resolutions)+"\",\n";
+    j<<"  \"x86_cpu_preset\": \""+esc(vm.x86_cpu_preset)+"\",\n";
     j<<"  \"tcg_mttcg\": "<<(vm.tcg_mttcg?"true":"false")<<",\n";
     j<<"  \"snapshot_mode\": "<<(vm.snapshot_mode?"true":"false")<<",\n";
     j<<"  \"no_reboot\": "<<(vm.no_reboot?"true":"false")<<",\n";
@@ -253,8 +262,6 @@ VMConfig vmFromJson(const std::string& s) {
     std::string tpm=jsonStr(s,"tpm");
     if(tpm=="TIS")vm.tpm=TpmType::TIS; else if(tpm=="CRB")vm.tpm=TpmType::CRB; else vm.tpm=TpmType::None;
     vm.virtio_rng=jsonBool(s,"virtio_rng"); vm.numa_enabled=jsonBool(s,"numa_enabled");
-    vm.binary_mode=jsonStr(s,"binary_mode")=="Custom"?BinaryMode::Custom:BinaryMode::Auto;
-    vm.custom_binary=jsonStr(s,"custom_binary");
     // accel
     std::string acc=jsonStr(s,"accel");
     if(acc=="KVM")vm.accel=Accelerator::KVM; else if(acc=="KVM_LBT")vm.accel=Accelerator::KVM_LBT;
@@ -267,6 +274,13 @@ VMConfig vmFromJson(const std::string& s) {
     else if(tb=="MB512")vm.tb_size=TbSize::MB512; else if(tb=="MB1024")vm.tb_size=TbSize::MB1024;
     else vm.tb_size=TbSize::MB256;
     vm.kvm_nested=jsonBool(s,"kvm_nested"); vm.tcg_mttcg=jsonBool(s,"tcg_mttcg",true);
+    vm.arm_sme=jsonBool(s,"arm_sme"); vm.arm_sme2=jsonBool(s,"arm_sme2");
+    vm.riscv_zilsd=jsonBool(s,"riscv_zilsd"); vm.riscv_zclsd=jsonBool(s,"riscv_zclsd");
+    vm.riscv_zalasr=jsonBool(s,"riscv_zalasr"); vm.riscv_smpmpmt=jsonBool(s,"riscv_smpmpmt");
+    vm.ppc_snapshot_devs=jsonBool(s,"ppc_snapshot_devs");
+    vm.sev_snp_reset=jsonBool(s,"sev_snp_reset");
+    vm.gpu_head_resolutions=jsonStr(s,"gpu_head_resolutions");
+    vm.x86_cpu_preset=jsonStr(s,"x86_cpu_preset");
     vm.snapshot_mode=jsonBool(s,"snapshot_mode"); vm.no_reboot=jsonBool(s,"no_reboot");
     vm.extra_args=jsonStr(s,"extra_args"); vm.save_script_to_vm_folder=jsonBool(s,"save_script");
     std::string st=jsonStr(s,"status");

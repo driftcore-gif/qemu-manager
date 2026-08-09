@@ -88,15 +88,22 @@ void VMSettingsDialog::populateFromVM() {
     gtk_check_button_set_active(GTK_CHECK_BUTTON(riscv_iommu_check), vm_ref.riscv_iommu);
     // QEMU 10.2
     gtk_check_button_set_active(GTK_CHECK_BUTTON(io_uring_check), vm_ref.io_uring_loop);
+    gtk_check_button_set_active(GTK_CHECK_BUTTON(kvm_nested_check), vm_ref.kvm_nested);
+    gtk_check_button_set_active(GTK_CHECK_BUTTON(arm_sme_check), vm_ref.arm_sme);
+    gtk_check_button_set_active(GTK_CHECK_BUTTON(arm_sme2_check), vm_ref.arm_sme2);
+    gtk_check_button_set_active(GTK_CHECK_BUTTON(riscv_zilsd_check), vm_ref.riscv_zilsd);
+    gtk_check_button_set_active(GTK_CHECK_BUTTON(riscv_zclsd_check), vm_ref.riscv_zclsd);
+    gtk_check_button_set_active(GTK_CHECK_BUTTON(riscv_zalasr_check), vm_ref.riscv_zalasr);
+    gtk_check_button_set_active(GTK_CHECK_BUTTON(riscv_smpmpmt_check), vm_ref.riscv_smpmpmt);
+    gtk_check_button_set_active(GTK_CHECK_BUTTON(ppc_snap_check), vm_ref.ppc_snapshot_devs);
+    gtk_check_button_set_active(GTK_CHECK_BUTTON(sev_snp_reset_check), vm_ref.sev_snp_reset);
+    gtk_editable_set_text(GTK_EDITABLE(gpu_heads_entry), vm_ref.gpu_head_resolutions.c_str());
+    gtk_editable_set_text(GTK_EDITABLE(x86_cpu_preset_entry), vm_ref.x86_cpu_preset.c_str());
     gtk_drop_down_set_selected(GTK_DROP_DOWN(migration_combo), (guint)vm_ref.migration_mode);
     if(virtfs_path_entry && !vm_ref.virtfs_path.empty())
         gtk_editable_set_text(GTK_EDITABLE(virtfs_path_entry), vm_ref.virtfs_path.c_str());
     if(virtfs_tag_entry)
         gtk_editable_set_text(GTK_EDITABLE(virtfs_tag_entry), vm_ref.virtfs_mount_tag.c_str());
-    
-    if (vm_ref.binary_mode == BinaryMode::Custom) {
-        gtk_editable_set_text(GTK_EDITABLE(custom_bin_entry), vm_ref.custom_binary.c_str());
-    }
     
     updatePreview();
 }
@@ -292,45 +299,6 @@ void VMSettingsDialog::buildPages() {
         gtk_widget_set_margin_top(g, 16);
         int r = 0;
         
-        // Scan /usr/bin for qemu binaries
-        std::vector<std::string> bins = CommandBuilder::listInstalledBinaries(VMMode::System);
-        std::vector<const char*> bin_cstr;
-        for (auto& b : bins) bin_cstr.push_back(b.c_str());
-        bin_cstr.push_back("Custom...");
-        bin_cstr.push_back(nullptr);
-        bin_combo = gtk_drop_down_new_from_strings(bin_cstr.data());
-        gtk_widget_set_hexpand(bin_combo, TRUE);
-        gtk_grid_attach(GTK_GRID(g), make_label("QEMU Binary:"), 0, r, 1, 1);
-        gtk_grid_attach(GTK_GRID(g), bin_combo, 1, r, 1, 1); r++;
-        
-        custom_bin_entry = gtk_entry_new();
-        gtk_entry_set_placeholder_text(GTK_ENTRY(custom_bin_entry), "qemu-system-...");
-        gtk_widget_set_sensitive(custom_bin_entry, FALSE);
-        gtk_widget_set_hexpand(custom_bin_entry, TRUE);
-        gtk_grid_attach(GTK_GRID(g), custom_bin_entry, 1, r, 1, 1); r++;
-        
-        bin_hint_lbl = gtk_label_new("");
-        gtk_widget_add_css_class(bin_hint_lbl, "dim-label");
-        gtk_label_set_xalign(GTK_LABEL(bin_hint_lbl), 0);
-        gtk_grid_attach(GTK_GRID(g), bin_hint_lbl, 0, r, 2, 1); r++;
-        
-        g_object_set_data(G_OBJECT(bin_combo), "custom_idx", GINT_TO_POINTER((int)bins.size()));
-        g_object_set_data(G_OBJECT(bin_combo), "entry", custom_bin_entry);
-        g_object_set_data(G_OBJECT(bin_combo), "hint", bin_hint_lbl);
-        g_signal_connect(bin_combo, "notify::selected",
-            G_CALLBACK(+[](GtkDropDown* dd, GParamSpec*, gpointer) {
-                int custom_idx = GPOINTER_TO_INT(g_object_get_data(G_OBJECT(dd), "custom_idx"));
-                GtkWidget* ent = (GtkWidget*)g_object_get_data(G_OBJECT(dd), "entry");
-                bool is_custom = (int)gtk_drop_down_get_selected(dd) == custom_idx;
-                gtk_widget_set_sensitive(ent, is_custom);
-                if (!is_custom) {
-                    GtkWidget* hint = (GtkWidget*)g_object_get_data(G_OBJECT(dd), "hint");
-                    gtk_label_set_text(GTK_LABEL(hint), "");
-                }
-            }), nullptr);
-        
-        gtk_grid_attach(GTK_GRID(g), gtk_separator_new(GTK_ORIENTATION_HORIZONTAL), 0, r, 2, 1); r++;
-        
         static const char* accel_names[] = {
             "TCG  (software emulation - works everywhere)",
             "KVM  (hardware acceleration - requires /dev/kvm)",
@@ -392,6 +360,44 @@ void VMSettingsDialog::buildPages() {
         // ── QEMU 10.2: io_uring + CPR-exec migration + 9pfs ────────────
         io_uring_check = gtk_check_button_new_with_label("io_uring main loop (Linux 5.1+, QEMU 10.2 perf boost)");
         gtk_grid_attach(GTK_GRID(g), io_uring_check, 0, r, 2, 1); r++;
+
+        // ── QEMU 11.0 new features ────────────────────────────────────────
+        kvm_nested_check = gtk_check_button_new_with_label("KVM Nested Virt (vmx=on, allows VMs inside VMs)");
+        gtk_grid_attach(GTK_GRID(g), kvm_nested_check, 0, r, 2, 1); r++;
+
+        arm_sme_check = gtk_check_button_new_with_label("ARM SME — Scalable Matrix Extension TCG/HVF (QEMU 11, AArch64)");
+        gtk_grid_attach(GTK_GRID(g), arm_sme_check, 0, r, 2, 1); r++;
+
+        arm_sme2_check = gtk_check_button_new_with_label("ARM SME2 — Scalable Matrix Extension v2 (QEMU 11, AArch64, requires SME)");
+        gtk_grid_attach(GTK_GRID(g), arm_sme2_check, 0, r, 2, 1); r++;
+
+        riscv_zilsd_check = gtk_check_button_new_with_label("RISC-V Zilsd extension (Load/Store Doubleword, QEMU 11)");
+        gtk_grid_attach(GTK_GRID(g), riscv_zilsd_check, 0, r, 2, 1); r++;
+
+        riscv_zclsd_check = gtk_check_button_new_with_label("RISC-V Zclsd extension (Compressed Load/Store Doubleword, QEMU 11)");
+        gtk_grid_attach(GTK_GRID(g), riscv_zclsd_check, 0, r, 2, 1); r++;
+
+        riscv_zalasr_check = gtk_check_button_new_with_label("RISC-V ZALASR extension (Load-Acquire/Store-Release, QEMU 11)");
+        gtk_grid_attach(GTK_GRID(g), riscv_zalasr_check, 0, r, 2, 1); r++;
+
+        riscv_smpmpmt_check = gtk_check_button_new_with_label("RISC-V Smpmpmt extension (PMP Machine Timer, QEMU 11)");
+        gtk_grid_attach(GTK_GRID(g), riscv_smpmpmt_check, 0, r, 2, 1); r++;
+
+        ppc_snap_check = gtk_check_button_new_with_label("PowerPC snapshot support for SPAPR/vscsi/vlan devices (QEMU 11)");
+        gtk_grid_attach(GTK_GRID(g), ppc_snap_check, 0, r, 2, 1); r++;
+
+        sev_snp_reset_check = gtk_check_button_new_with_label("SEV-SNP Reset support — clean VM restart preserving attestation (QEMU 11 KVM)");
+        gtk_grid_attach(GTK_GRID(g), sev_snp_reset_check, 0, r, 2, 1); r++;
+
+        gtk_grid_attach(GTK_GRID(g), make_label("GPU multi-head resolutions (comma-sep, e.g. 1920x1080,2560x1440):"), 0, r, 1, 1);
+        gpu_heads_entry = gtk_entry_new();
+        gtk_widget_set_tooltip_text(gpu_heads_entry, "virtio-gpu multi-head: unique resolution per output (QEMU 11). First value = primary head.");
+        gtk_grid_attach(GTK_GRID(g), gpu_heads_entry, 1, r, 1, 1); r++;
+
+        gtk_grid_attach(GTK_GRID(g), make_label("x86 CPU preset (QEMU 11: DiamondRapids, GraniteRapids-v1, SierraForest-v2):"), 0, r, 1, 1);
+        x86_cpu_preset_entry = gtk_entry_new();
+        gtk_widget_set_tooltip_text(x86_cpu_preset_entry, "Diamond Rapids (Intel Xeon Gen 6), Sierra Forest-v2 (efficiency cores). Overrides CPU model when set.");
+        gtk_grid_attach(GTK_GRID(g), x86_cpu_preset_entry, 1, r, 1, 1); r++;
 
         static const char* mig_names[] = {"None","CPR-exec (live update, QEMU 10.2)","SaveVM",nullptr};
         migration_combo = gtk_drop_down_new_from_strings(mig_names);
@@ -487,16 +493,6 @@ VMConfig VMSettingsDialog::collectConfig() {
     c.audio = (AudioType)gtk_drop_down_get_selected(GTK_DROP_DOWN(audio_combo));
     c.net_mode = (NetworkMode)gtk_drop_down_get_selected(GTK_DROP_DOWN(net_combo));
     
-    int custom_idx = GPOINTER_TO_INT(g_object_get_data(G_OBJECT(bin_combo), "custom_idx"));
-    int sel = (int)gtk_drop_down_get_selected(GTK_DROP_DOWN(bin_combo));
-    if (sel == custom_idx) {
-        c.binary_mode = BinaryMode::Custom;
-        c.custom_binary = gtk_editable_get_text(GTK_EDITABLE(custom_bin_entry));
-    } else {
-        c.binary_mode = BinaryMode::Auto;
-        c.custom_binary = "";
-    }
-    
     const Accelerator ac[] = {
         Accelerator::TCG, Accelerator::KVM, Accelerator::KVM_LBT,
         Accelerator::WHPX, Accelerator::HVF, Accelerator::NVMM,
@@ -513,6 +509,17 @@ VMConfig VMSettingsDialog::collectConfig() {
     c.riscv_iommu = gtk_check_button_get_active(GTK_CHECK_BUTTON(riscv_iommu_check));
     // QEMU 10.2 new fields
     c.io_uring_loop   = gtk_check_button_get_active(GTK_CHECK_BUTTON(io_uring_check));
+    c.kvm_nested      = gtk_check_button_get_active(GTK_CHECK_BUTTON(kvm_nested_check));
+    c.arm_sme         = gtk_check_button_get_active(GTK_CHECK_BUTTON(arm_sme_check));
+    c.arm_sme2        = gtk_check_button_get_active(GTK_CHECK_BUTTON(arm_sme2_check));
+    c.riscv_zilsd     = gtk_check_button_get_active(GTK_CHECK_BUTTON(riscv_zilsd_check));
+    c.riscv_zclsd     = gtk_check_button_get_active(GTK_CHECK_BUTTON(riscv_zclsd_check));
+    c.riscv_zalasr    = gtk_check_button_get_active(GTK_CHECK_BUTTON(riscv_zalasr_check));
+    c.riscv_smpmpmt   = gtk_check_button_get_active(GTK_CHECK_BUTTON(riscv_smpmpmt_check));
+    c.ppc_snapshot_devs = gtk_check_button_get_active(GTK_CHECK_BUTTON(ppc_snap_check));
+    c.sev_snp_reset   = gtk_check_button_get_active(GTK_CHECK_BUTTON(sev_snp_reset_check));
+    c.gpu_head_resolutions = gtk_editable_get_text(GTK_EDITABLE(gpu_heads_entry));
+    c.x86_cpu_preset  = gtk_editable_get_text(GTK_EDITABLE(x86_cpu_preset_entry));
     c.migration_mode  = (MigrationMode)gtk_drop_down_get_selected(GTK_DROP_DOWN(migration_combo));
     const char* vp = gtk_editable_get_text(GTK_EDITABLE(virtfs_path_entry));
     c.virtfs_path = vp ? vp : "";
@@ -573,19 +580,6 @@ void VMSettingsDialog::onSaveClicked(GtkButton*, gpointer d) {
         compat_show_alert(GTK_WINDOW(s->dialog), "Please enter a VM name.");
 #endif
         return;
-    }
-    if (c.binary_mode == BinaryMode::Custom) {
-        std::string err = CommandBuilder::validateCustomBinary(c.custom_binary);
-        if (!err.empty()) {
-#if GTK_CHECK_VERSION(4, 10, 0)
-            GtkAlertDialog* ad = gtk_alert_dialog_new(("Binary error: " + err).c_str());
-            gtk_alert_dialog_show(ad, GTK_WINDOW(s->dialog));
-            g_object_unref(ad);
-#else
-            compat_show_alert(GTK_WINDOW(s->dialog), ("Binary error: " + err).c_str());
-#endif
-            return;
-        }
     }
     VMConfigIO::save(c);
     if (c.save_script_to_vm_folder)

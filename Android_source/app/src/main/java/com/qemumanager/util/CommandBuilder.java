@@ -8,13 +8,6 @@ import java.util.List;
 
 public class CommandBuilder {
 
-    private static final String[] BIN_PATHS = {
-        "/usr/bin",
-        "/data/data/com.termux/files/usr/bin",
-        "/system/bin",
-        "/vendor/bin"
-    };
-
     private static final String[] SYSTEM_BINS = {
         "qemu-system-x86_64","qemu-system-i386",
         "qemu-system-aarch64","qemu-system-arm","qemu-system-armeb",
@@ -48,68 +41,19 @@ public class CommandBuilder {
         "qemu-tricore","qemu-rx","qemu-avr","qemu-hexagon"
     };
 
-    public static String getBinDir() {
-        for (String p : BIN_PATHS) {
-            File f = new File(p);
-            if (f.exists() && f.isDirectory() && f.canRead()) return p;
-        }
-        return "/usr/bin";
-    }
-
-    public static List<String> getBinDirs() {
-        List<String> dirs = new ArrayList<>();
-        for (String p : BIN_PATHS) {
-            File f = new File(p);
-            if (f.exists() && f.isDirectory() && f.canRead()) dirs.add(p);
-        }
-        if (dirs.isEmpty()) dirs.add("/usr/bin");
-        return dirs;
-    }
-
     public static String archToQemuBin(VMConfig.VMArch arch, VMConfig.VMMode mode) {
         int i = arch.ordinal();
         String[] t = mode == VMConfig.VMMode.System ? SYSTEM_BINS : USER_BINS;
         return (i >= 0 && i < t.length) ? t[i] : "qemu-system-x86_64";
     }
 
+    // Blind execution: run the binary name directly via PATH lookup (or the
+    // Termux prefix's /usr/bin, which is already on PATH inside Termux).
+    // No filesystem detection or validation is performed here — if it's
+    // missing, launch fails and RunLogActivity surfaces an install hint
+    // from the process output / exit code.
     public static String resolveBinary(VMConfig vm) {
-        String name = (vm.binaryMode == VMConfig.BinaryMode.Custom && !vm.customBinary.isEmpty())
-            ? vm.customBinary : archToQemuBin(vm.arch, vm.mode);
-        for (String dir : getBinDirs()) {
-            File f = new File(dir, name);
-            if (f.exists()) return dir + "/" + name;
-        }
-        return getBinDir() + "/" + name;
-    }
-
-    public static List<String> listInstalledBinaries(VMConfig.VMMode mode) {
-        List<String> out = new ArrayList<>();
-        String prefix = (mode == VMConfig.VMMode.System) ? "qemu-system-" : "qemu-";
-        try {
-            for (String dir : getBinDirs()) {
-                File d = new File(dir);
-                if (!d.exists() || !d.canRead()) continue;
-                File[] files = d.listFiles();
-                if (files == null) continue;
-                for (File f : files) {
-                    String n = f.getName();
-                    if (n.startsWith(prefix)) {
-                        if (mode == VMConfig.VMMode.UserMode && n.startsWith("qemu-system-")) continue;
-                        if (!out.contains(n)) out.add(n);
-                    }
-                }
-            }
-            java.util.Collections.sort(out);
-        } catch (Exception ignored) {}
-        return out;
-    }
-
-    public static String validateCustomBinary(String name) {
-        if (name == null || name.isEmpty()) return "Binary name is empty.";
-        if (name.contains(" "))  return "No spaces allowed.";
-        if (name.contains("/"))  return "No slashes allowed.";
-        if (!name.startsWith("qemu-")) return "Must start with 'qemu-'.";
-        return "";
+        return archToQemuBin(vm.arch, vm.mode);
     }
 
     // ── Build QEMU argument list ──────────────────────────────────────

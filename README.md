@@ -37,11 +37,12 @@ Pre-built packages for every supported platform are attached to the [latest rele
 
 | Package | Architecture | Use case |
 |---|---|---|
-| `qemu-manager_*_amd64.deb` | x86_64 | Standard PC / server |
-| `qemu-manager_*_arm64.deb` | aarch64 | ARM64 SBC, Raspberry Pi 4/5 |
-| `qemu-manager_*_armhf.deb` | ARMv7 (hard-float) | 32-bit ARM SBC |
-| `qemu-manager_*_i386.deb` | x86 32-bit | Legacy / chroot |
-| `qemu-manager_*_android.apk` | Universal ARM/x86 | Android + Termux/PRoot |
+| `qemu-manager-10.0-1_amd64.deb` | x86_64 | Standard PC / server |
+| `qemu-manager-10.0-1_aarch64.deb` | aarch64 | ARM64 SBC, Raspberry Pi 4/5, PRoot Debian |
+| `qemu-manager-10.0-1_armhf.deb` | ARMv7 (hard-float) | 32-bit ARM SBC |
+| `qemu-manager-10.0-1_i386.deb` | x86 32-bit | Legacy / chroot |
+| `qemu-manager-termux-native-10.0-1_aarch64.deb` | aarch64 (Bionic) | **Native Termux — no proot, no chroot** |
+| `qemu-manager-10.0-1.apk` | Universal ARM/x86 | Android sideload |
 
 ---
 
@@ -82,15 +83,34 @@ sudo ninja install
 2. Download `qemu-manager_*_android.apk` from [Releases](https://github.com/driftcore-gif/qemu-manager/releases/latest)
 3. Tap the APK to install
 
-### Option 2 — Termux + QEMU
+### Option 2 — Native Termux GUI (recommended — no proot, no chroot)
+
+QEMU Manager now ships as a **true native Termux binary**, cross-compiled against
+Termux's own Bionic libc + GTK4 packages. It runs directly in Termux's own
+filesystem — no `proot-distro`, no Debian chroot, no emulation layer.
 
 ```bash
-# Install QEMU in Termux
-pkg install qemu-system-x86-64-headless   # or qemu-system-aarch64, etc.
+# 1. Get GTK4 + the C++ runtime (one-time)
+pkg install x11-repo -y
+pkg install gtk4 libc++ -y
 
-# Use QEMU Manager to create VMs and copy the generated command
-# Run the copied command directly in Termux
+# 2. Download and install the native package
+wget https://github.com/driftcore-gif/qemu-manager/releases/latest/download/qemu-manager-termux-native-10.0-1_aarch64.deb
+dpkg -i qemu-manager-termux-native-10.0-1_aarch64.deb
+
+# 3. Install QEMU itself
+pkg install qemu-system-x86-64-headless -y   # or qemu-system-aarch64, etc.
+
+# 4. Start a display (Termux:X11 app must be installed from F-Droid/Play Store)
+termux-x11 :0 &
+export DISPLAY=:0
+
+# 5. Launch
+qemu-manager
 ```
+
+Currently built for **aarch64** (covers the vast majority of Android devices).
+See `Linux_source/docs/termux-setup.md` for details and troubleshooting.
 
 ### Option 3 — PRoot Debian in Termux
 

@@ -8,6 +8,7 @@ import android.widget.*;
 import androidx.appcompat.app.AppCompatActivity;
 import com.qemumanager.R;
 import com.qemumanager.model.VMConfig;
+import com.qemumanager.util.ArchUiHelper;
 import com.qemumanager.util.CommandBuilder;
 import com.qemumanager.util.VMConfigIO;
 import java.io.File;
@@ -17,9 +18,11 @@ import java.util.List;
 public class VMEditActivity extends AppCompatActivity {
 
     // General
-    private EditText nameEntry, descEntry, machCustomEntry, cpuEntry;
+    private EditText nameEntry, descEntry, machCustomEntry;
     private Spinner archSpinner, modeSpinner, machSpinner;
     // CPU
+    private Spinner cpuSpinner;
+    private EditText cpuFlagsEntry;
     private SeekBar socketsSb, coresSb, threadsSb;
     private TextView socketsVal, coresVal, threadsVal;
     // Memory
@@ -37,17 +40,14 @@ public class VMEditActivity extends AppCompatActivity {
     // Network
     private Spinner netSpinner;
     // Hardware
-    private Spinner binSpinner, accelSpinner;
-    private EditText customBinEntry, extraArgsEntry;
-    private TextView binHintText, lbtNoteText;
+    private Spinner accelSpinner;
+    private EditText extraArgsEntry;
+    private TextView lbtNoteText;
     private CheckBox saveScriptCheck;
-    private LinearLayout customBinRow;
     // Preview
     private TextView cmdPreview;
 
     private VMConfig vm;
-    private List<String> detectedBins = new ArrayList<>();
-    private List<String> spinnerItems = new ArrayList<>();
     private int[] ramSteps = {64,128,256,512,1024,2048,4096,8192,16384,32768};
 
     @Override
@@ -82,7 +82,8 @@ public class VMEditActivity extends AppCompatActivity {
         nameEntry      = findViewById(R.id.et_name);
         descEntry      = findViewById(R.id.et_desc);
         machCustomEntry= findViewById(R.id.et_mach_custom);
-        cpuEntry       = findViewById(R.id.et_cpu);
+        cpuSpinner     = findViewById(R.id.sp_cpu);
+        cpuFlagsEntry  = findViewById(R.id.et_cpu_flags);
         archSpinner    = findViewById(R.id.sp_arch);
         modeSpinner    = findViewById(R.id.sp_mode);
         machSpinner    = findViewById(R.id.sp_machine);
@@ -105,14 +106,10 @@ public class VMEditActivity extends AppCompatActivity {
         gpuSpinner     = findViewById(R.id.sp_gpu);
         audioSpinner   = findViewById(R.id.sp_audio);
         netSpinner     = findViewById(R.id.sp_net);
-        binSpinner     = findViewById(R.id.sp_binary);
         accelSpinner   = findViewById(R.id.sp_accel);
-        customBinEntry = findViewById(R.id.et_custom_bin);
         extraArgsEntry = findViewById(R.id.et_extra_args);
-        binHintText    = findViewById(R.id.tv_bin_hint);
         lbtNoteText    = findViewById(R.id.tv_lbt_note);
         saveScriptCheck= findViewById(R.id.cb_save_script);
-        customBinRow   = findViewById(R.id.row_custom_bin);
         cmdPreview     = findViewById(R.id.tv_cmd_preview);
     }
 
@@ -122,16 +119,15 @@ public class VMEditActivity extends AppCompatActivity {
         if (archSpinner != null) archSpinner.setSelection(vm.arch.ordinal());
         if (modeSpinner != null) modeSpinner.setSelection(vm.mode == VMConfig.VMMode.UserMode ? 1 : 0);
 
-        VMConfig.MachineType[] mts = {VMConfig.MachineType.q35, VMConfig.MachineType.pc,
-            VMConfig.MachineType.virt, VMConfig.MachineType.microvm, VMConfig.MachineType.custom};
-        for (int i = 0; i < mts.length; i++) {
-            if (mts[i] == vm.machine) { if (machSpinner != null) machSpinner.setSelection(i); break; }
-        }
+        // Populate machine/CPU/GPU/audio/accel dropdowns filtered to this
+        // VM's architecture, then select the items matching its saved config.
+        applyArchFilters(vm.arch.ordinal());
+
         if (machCustomEntry != null) {
             machCustomEntry.setText(vm.machineCustom);
             machCustomEntry.setVisibility(vm.machine == VMConfig.MachineType.custom ? View.VISIBLE : View.GONE);
         }
-        if (cpuEntry != null) cpuEntry.setText(vm.cpuModel);
+        if (cpuFlagsEntry != null) cpuFlagsEntry.setText(vm.cpuFlags);
 
         // SeekBars
         if (socketsSb != null) { socketsSb.setMax(7); socketsSb.setProgress(vm.sockets - 1); socketsVal.setText("Sockets: " + vm.sockets); }
@@ -163,44 +159,51 @@ public class VMEditActivity extends AppCompatActivity {
         }
 
         if (displaySpinner != null) displaySpinner.setSelection(vm.display.ordinal());
-        if (gpuSpinner != null) gpuSpinner.setSelection(vm.gpu.ordinal());
-        if (audioSpinner != null) audioSpinner.setSelection(vm.audio.ordinal());
         if (netSpinner != null) netSpinner.setSelection(vm.net.ordinal());
 
-        // Hardware - binary
-        detectedBins = CommandBuilder.listInstalledBinaries(vm.mode);
-        if (detectedBins == null) detectedBins = new ArrayList<>();
-        spinnerItems = new ArrayList<>(detectedBins);
-        if (detectedBins.isEmpty()) spinnerItems.add("(No QEMU found)");
-        spinnerItems.add("Custom...");
-
-        ArrayAdapter<String> a = new ArrayAdapter<>(this,
-            android.R.layout.simple_spinner_item, spinnerItems);
-        a.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item);
-        if (binSpinner != null) binSpinner.setAdapter(a);
-
-        if (vm.binaryMode == VMConfig.BinaryMode.Custom) {
-            if (binSpinner != null) binSpinner.setSelection(spinnerItems.size() - 1);
-            if (customBinRow != null) customBinRow.setVisibility(View.VISIBLE);
-            if (customBinEntry != null) customBinEntry.setText(vm.customBinary);
-        } else {
-            int idx = detectedBins.indexOf(CommandBuilder.archToQemuBin(vm.arch, vm.mode));
-            if (idx >= 0 && binSpinner != null) binSpinner.setSelection(idx);
-        }
-
-        if (accelSpinner != null) accelSpinner.setSelection(vm.accel.ordinal());
+        // Binary is resolved automatically from architecture — no picker UI.
         if (lbtNoteText != null) lbtNoteText.setVisibility(vm.accel == VMConfig.Accelerator.KVM_LBT ? View.VISIBLE : View.GONE);
         if (extraArgsEntry != null) extraArgsEntry.setText(vm.extraArgs);
         if (saveScriptCheck != null) saveScriptCheck.setChecked(vm.saveScriptToFolder);
     }
 
+    /** Repopulate machine/CPU/GPU/audio/accel spinners for the given arch position, then re-select best matches. */
+    private void applyArchFilters(int archPos) {
+        ArchUiHelper.ArchGroup g = ArchUiHelper.archGroup(archPos);
+        ArchUiHelper.populateSpinner(this, machSpinner,  ArchUiHelper.machArr(g));
+        ArchUiHelper.populateSpinner(this, cpuSpinner,   ArchUiHelper.cpuArr(g));
+        ArchUiHelper.populateSpinner(this, gpuSpinner,   ArchUiHelper.gpuArr(g));
+        ArchUiHelper.populateSpinner(this, audioSpinner, ArchUiHelper.audioArr(g));
+        ArchUiHelper.populateSpinner(this, accelSpinner, ArchUiHelper.accelArr(g));
+
+        ArchUiHelper.selectMatching(machSpinner,  label -> ArchUiHelper.machineMatches(label, vm.machine));
+        ArchUiHelper.selectMatching(cpuSpinner,   label -> ArchUiHelper.parseCpuModel(label).equals(vm.cpuModel));
+        ArchUiHelper.selectMatching(gpuSpinner,   label -> ArchUiHelper.gpuMatches(label, vm.gpu));
+        ArchUiHelper.selectMatching(audioSpinner, label -> ArchUiHelper.audioMatches(label, vm.audio));
+        ArchUiHelper.selectMatching(accelSpinner, label -> ArchUiHelper.accelMatches(label, vm.accel));
+    }
+
     private void setupListeners() {
+        // Changing architecture re-filters machine/CPU/GPU/audio/accel choices
+        if (archSpinner != null) {
+            archSpinner.setOnItemSelectedListener(new AdapterView.OnItemSelectedListener() {
+                public void onItemSelected(AdapterView<?> p, View v, int pos, long id) {
+                    applyArchFilters(pos);
+                    updatePreview();
+                }
+                public void onNothingSelected(AdapterView<?> p) {}
+            });
+        }
+
         // Machine custom visibility
         if (machSpinner != null) {
             machSpinner.setOnItemSelectedListener(new AdapterView.OnItemSelectedListener() {
                 public void onItemSelected(AdapterView<?> p, View v, int pos, long id) {
+                    String s = (String) p.getItemAtPosition(pos);
+                    boolean isCustom = ArchUiHelper.parseMachine(s) == VMConfig.MachineType.custom;
                     if (machCustomEntry != null)
-                        machCustomEntry.setVisibility(pos == 4 ? View.VISIBLE : View.GONE);
+                        machCustomEntry.setVisibility(isCustom ? View.VISIBLE : View.GONE);
+                    updatePreview();
                 }
                 public void onNothingSelected(AdapterView<?> p) {}
             });
@@ -213,40 +216,11 @@ public class VMEditActivity extends AppCompatActivity {
         if (ramSb != null && ramVal != null) {
             ramSb.setOnSeekBarChangeListener(new SeekBar.OnSeekBarChangeListener() {
                 public void onProgressChanged(SeekBar s, int p, boolean u) {
-                    ramVal.setText("RAM: " + ramSteps[Math.min(p, ramSteps.length-1)] + " MB");
+                    int idx = Math.min(p, ramSteps.length - 1);
+                    ramVal.setText("RAM: " + ramSteps[idx] + " MB");
                 }
                 public void onStartTrackingTouch(SeekBar s) {}
                 public void onStopTrackingTouch(SeekBar s) {}
-            });
-        }
-
-        // Binary spinner
-        if (binSpinner != null) {
-            binSpinner.setOnItemSelectedListener(new AdapterView.OnItemSelectedListener() {
-                public void onItemSelected(AdapterView<?> p, View v, int pos, long id) {
-                    boolean isCustom = pos == spinnerItems.size() - 1;
-                    if (customBinRow != null) customBinRow.setVisibility(isCustom ? View.VISIBLE : View.GONE);
-                    if (binHintText != null) binHintText.setText("");
-                }
-                public void onNothingSelected(AdapterView<?> p) {}
-            });
-        }
-
-        // Custom binary validation
-        if (customBinEntry != null) {
-            customBinEntry.addTextChangedListener(new TextWatcher() {
-                public void beforeTextChanged(CharSequence s, int st, int c, int a) {}
-                public void afterTextChanged(Editable s) {}
-                public void onTextChanged(CharSequence s, int st, int b, int c) {
-                    String txt = s.toString();
-                    if (txt.contains(" ") || txt.contains("/")) {
-                        if (binHintText != null) binHintText.setText("Binary name only - no spaces or slashes");
-                        customBinEntry.setError("Invalid");
-                    } else {
-                        if (binHintText != null) binHintText.setText("");
-                        customBinEntry.setError(null);
-                    }
-                }
             });
         }
 
@@ -254,7 +228,10 @@ public class VMEditActivity extends AppCompatActivity {
         if (accelSpinner != null) {
             accelSpinner.setOnItemSelectedListener(new AdapterView.OnItemSelectedListener() {
                 public void onItemSelected(AdapterView<?> p, View v, int pos, long id) {
-                    if (lbtNoteText != null) lbtNoteText.setVisibility(pos == 2 ? View.VISIBLE : View.GONE);
+                    String s = (String) p.getItemAtPosition(pos);
+                    if (lbtNoteText != null)
+                        lbtNoteText.setVisibility(ArchUiHelper.parseAccel(s) == VMConfig.Accelerator.KVM_LBT ? View.VISIBLE : View.GONE);
+                    updatePreview();
                 }
                 public void onNothingSelected(AdapterView<?> p) {}
             });
@@ -297,12 +274,19 @@ public class VMEditActivity extends AppCompatActivity {
             c.arch = VMConfig.VMArch.values()[Math.min(archSpinner.getSelectedItemPosition(), VMConfig.VMArch.values().length-1)];
         if (modeSpinner != null)
             c.mode = modeSpinner.getSelectedItemPosition() == 1 ? VMConfig.VMMode.UserMode : VMConfig.VMMode.System;
-        VMConfig.MachineType[] mts = {VMConfig.MachineType.q35, VMConfig.MachineType.pc,
-            VMConfig.MachineType.virt, VMConfig.MachineType.microvm, VMConfig.MachineType.custom};
-        if (machSpinner != null)
-            c.machine = mts[Math.min(machSpinner.getSelectedItemPosition(), mts.length-1)];
+
+        if (machSpinner != null) {
+            String m = (String) machSpinner.getSelectedItem();
+            c.machine = ArchUiHelper.parseMachine(m);
+        }
         if (machCustomEntry != null) c.machineCustom = machCustomEntry.getText().toString().trim();
-        if (cpuEntry != null) c.cpuModel = cpuEntry.getText().toString().trim();
+
+        if (cpuSpinner != null) {
+            String raw = (String) cpuSpinner.getSelectedItem();
+            c.cpuModel = ArchUiHelper.parseCpuModel(raw);
+        }
+        c.cpuFlags = cpuFlagsEntry != null ? cpuFlagsEntry.getText().toString().trim() : "";
+
         c.sockets = socketsSb != null ? socketsSb.getProgress() + 1 : vm.sockets;
         c.cores = coresSb != null ? coresSb.getProgress() + 1 : vm.cores;
         c.threads = threadsSb != null ? threadsSb.getProgress() + 1 : vm.threads;
@@ -318,23 +302,22 @@ public class VMEditActivity extends AppCompatActivity {
         if (bootSpinner != null) c.bootOrder = bos[Math.min(bootSpinner.getSelectedItemPosition(), bos.length-1)];
         if (displaySpinner != null)
             c.display = VMConfig.DisplayType.values()[Math.min(displaySpinner.getSelectedItemPosition(), VMConfig.DisplayType.values().length-1)];
-        if (gpuSpinner != null)
-            c.gpu = VMConfig.GPUType.values()[Math.min(gpuSpinner.getSelectedItemPosition(), VMConfig.GPUType.values().length-1)];
-        if (audioSpinner != null)
-            c.audio = VMConfig.AudioType.values()[Math.min(audioSpinner.getSelectedItemPosition(), VMConfig.AudioType.values().length-1)];
+
+        if (gpuSpinner != null) {
+            String g = (String) gpuSpinner.getSelectedItem();
+            c.gpu = ArchUiHelper.parseGpu(g);
+        }
+        if (audioSpinner != null) {
+            String a = (String) audioSpinner.getSelectedItem();
+            c.audio = ArchUiHelper.parseAudio(a);
+        }
         if (netSpinner != null)
             c.net = VMConfig.NetworkMode.values()[Math.min(netSpinner.getSelectedItemPosition(), VMConfig.NetworkMode.values().length-1)];
 
-        int sel = binSpinner != null ? binSpinner.getSelectedItemPosition() : 0;
-        if (binSpinner != null && sel == binSpinner.getAdapter().getCount() - 1) {
-            c.binaryMode = VMConfig.BinaryMode.Custom;
-            c.customBinary = customBinEntry != null ? customBinEntry.getText().toString().trim() : "";
-        } else {
-            c.binaryMode = VMConfig.BinaryMode.Auto;
-            c.customBinary = "";
+        if (accelSpinner != null) {
+            String a = (String) accelSpinner.getSelectedItem();
+            c.accel = ArchUiHelper.parseAccel(a);
         }
-        if (accelSpinner != null)
-            c.accel = VMConfig.Accelerator.values()[Math.min(accelSpinner.getSelectedItemPosition(), VMConfig.Accelerator.values().length-1)];
         c.extraArgs = extraArgsEntry != null ? extraArgsEntry.getText().toString().trim() : "";
         c.saveScriptToFolder = saveScriptCheck != null && saveScriptCheck.isChecked();
 
@@ -352,13 +335,6 @@ public class VMEditActivity extends AppCompatActivity {
             if (c.name.isEmpty()) {
                 if (nameEntry != null) { nameEntry.setError("VM name required"); nameEntry.requestFocus(); }
                 return;
-            }
-            if (c.binaryMode == VMConfig.BinaryMode.Custom) {
-                String err = CommandBuilder.validateCustomBinary(c.customBinary);
-                if (!err.isEmpty()) {
-                    if (customBinEntry != null) { customBinEntry.setError(err); customBinEntry.requestFocus(); }
-                    return;
-                }
             }
             String error = VMConfigIO.saveWithError(c);
             if (error != null) { Toast.makeText(this, "Save failed: " + error, Toast.LENGTH_LONG).show(); return; }

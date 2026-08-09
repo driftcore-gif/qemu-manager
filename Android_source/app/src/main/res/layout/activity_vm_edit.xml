@@ -49,9 +49,12 @@
             <TextView android:layout_width="wrap_content" android:layout_height="wrap_content"
                 android:text="CPU" android:textStyle="bold" android:textSize="16sp"
                 android:layout_marginBottom="8dp"/>
-            <EditText android:id="@+id/et_cpu" android:layout_width="match_parent"
-                android:layout_height="wrap_content" android:hint="CPU Model (max, host, cortex-a53…)"
-                android:text="max"/>
+            <Spinner android:id="@+id/sp_cpu" android:layout_width="match_parent"
+                android:layout_height="wrap_content"/>
+            <EditText android:id="@+id/et_cpu_flags" android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:hint="Extra CPU flags (+avx512f, migratable=off…)"
+                android:layout_marginTop="4dp"/>
             <TextView android:id="@+id/tv_sockets" android:layout_width="wrap_content"
                 android:layout_height="wrap_content" android:text="Sockets: 1" android:layout_marginTop="8dp"/>
             <SeekBar android:id="@+id/sb_sockets" android:layout_width="match_parent"
@@ -145,21 +148,6 @@
             <TextView android:layout_width="wrap_content" android:layout_height="wrap_content"
                 android:text="Hardware" android:textStyle="bold" android:textSize="16sp"
                 android:layout_marginBottom="8dp"/>
-
-            <TextView android:layout_width="wrap_content" android:layout_height="wrap_content"
-                android:text="QEMU Binary" android:textStyle="bold" android:layout_marginTop="8dp"/>
-            <Spinner android:id="@+id/sp_binary" android:layout_width="match_parent"
-                android:layout_height="wrap_content"/>
-            <LinearLayout android:id="@+id/row_custom_bin"
-                android:layout_width="match_parent" android:layout_height="wrap_content"
-                android:orientation="vertical" android:visibility="gone">
-                <EditText android:id="@+id/et_custom_bin" android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:hint="e.g. qemu-system-mycpu  (name only, resolved automatically)"/>
-                <TextView android:id="@+id/tv_bin_hint" android:layout_width="wrap_content"
-                    android:layout_height="wrap_content" android:textColor="#FF5722"
-                    android:textSize="12sp"/>
-            </LinearLayout>
 
             <TextView android:layout_width="wrap_content" android:layout_height="wrap_content"
                 android:text="Accelerator" android:textStyle="bold" android:layout_marginTop="12dp"/>

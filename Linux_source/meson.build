@@ -27,10 +27,12 @@ sources = files(
   'src/networkconfig.cpp',
   'src/displayconfig.cpp',
   'src/qemumonitor.cpp',
+  'src/logmonitor.cpp',
 )
 
 executable('qemu-manager',
   sources,
   dependencies : [gtk4_dep, thread_dep],
   include_directories : include_directories('include'),
-  install : true)
+  install : true,
+  install_rpath : '/data/data/com.termux/files/usr/lib')

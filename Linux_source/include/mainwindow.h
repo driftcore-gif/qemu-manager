@@ -93,9 +93,14 @@ private:
     // Network
     GtkWidget* net_combo;
     // Hardware
-    GtkWidget* bin_combo, *custom_bin_entry, *bin_hint_lbl, *accel_combo, *lbt_note_lbl, *extra_args_entry, *save_script_check;
+    GtkWidget* accel_combo, *lbt_note_lbl, *extra_args_entry, *save_script_check;
     GtkWidget* kvm_cet_check = nullptr, *conf_vm_combo = nullptr, *scsi_mq_check = nullptr, *riscv_iommu_check = nullptr;
     GtkWidget* io_uring_check = nullptr, *migration_combo = nullptr, *virtfs_path_entry = nullptr, *virtfs_tag_entry = nullptr;
+    // QEMU 11.0 new feature widgets
+    GtkWidget* kvm_nested_check = nullptr, *arm_sme_check = nullptr, *arm_sme2_check = nullptr;
+    GtkWidget* riscv_zilsd_check = nullptr, *riscv_zclsd_check = nullptr, *riscv_zalasr_check = nullptr, *riscv_smpmpmt_check = nullptr;
+    GtkWidget* ppc_snap_check = nullptr, *sev_snp_reset_check = nullptr;
+    GtkWidget* gpu_heads_entry = nullptr, *x86_cpu_preset_entry = nullptr;
     // Preview
     GtkWidget* cmd_preview;
     

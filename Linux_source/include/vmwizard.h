@@ -60,9 +60,6 @@ private:
     GtkWidget* net_combo = nullptr;
 
     // Hardware page
-    GtkWidget* bin_combo        = nullptr;  // dropdown: detected binaries + "Custom…"
-    GtkWidget* custom_bin_entry = nullptr;  // visible only when Custom… selected
-    GtkWidget* bin_hint_lbl     = nullptr;
     GtkWidget* accel_combo      = nullptr;  // TCG / KVM / KVM+LBT
     GtkWidget* lbt_note_lbl     = nullptr;
     GtkWidget* extra_args_entry = nullptr;
@@ -84,7 +81,7 @@ private:
     GtkWidget* buildBootPage();
     GtkWidget* buildDisplayPage();
     GtkWidget* buildNetworkPage();
-    GtkWidget* buildHardwarePage();   // binary + accelerator + extra args
+    GtkWidget* buildHardwarePage();   // accelerator + extra args + save-script
     GtkWidget* buildPreviewPage();
 
     static void onBrowseISO(GtkButton*, gpointer);

@@ -1,14 +1,19 @@
 package com.qemumanager.util;
 
+import android.content.Context;
+import android.net.Uri;
 import android.os.AsyncTask;
 import java.io.BufferedReader;
 import java.io.File;
+import java.io.FileOutputStream;
+import java.io.InputStream;
 import java.io.InputStreamReader;
+import java.io.OutputStream;
 import java.util.ArrayList;
 import java.util.List;
 
 /**
- * Handles qemu-img disk creation, inspection, and selection.
+ * Handles qemu-img disk creation, inspection, selection, and conversion.
  */
 public class DiskManager {
 
@@ -20,6 +25,12 @@ public class DiskManager {
 
     public interface DiskCreateCallback {
         void onSuccess(String diskPath);
+        void onError(String message);
+        void onProgress(String message);
+    }
+
+    public interface DiskConvertCallback {
+        void onSuccess(String destPath);
         void onError(String message);
         void onProgress(String message);
     }
@@ -46,6 +57,68 @@ public class DiskManager {
             p.waitFor();
             return p.exitValue() == 0;
         } catch (Exception e) {
+            return false;
+        }
+    }
+
+    public static String resolveUri(Context context, Uri uri) {
+        if (uri == null) return null;
+        try {
+            String scheme = uri.getScheme();
+            if ("file".equals(scheme)) return uri.getPath();
+            if ("content".equals(scheme)) {
+                String path = uri.getPath();
+                if (path != null && path.startsWith("/storage")) return path;
+                List<String> segs = uri.getPathSegments();
+                if (segs != null && segs.size() >= 2) {
+                    String last = segs.get(segs.size() - 1);
+                    if (last.contains(":")) {
+                        String[] parts = last.split(":");
+                        if (parts.length == 2) {
+                            String p = "/storage/emulated/0/" + parts[1];
+                            if (new File(p).exists()) return p;
+                        }
+                    }
+                }
+            }
+        } catch (Exception ignored) {}
+        return null;
+    }
+
+    public static String copyUriToTempFile(Context context, Uri uri, String prefix, String suffix) {
+        try {
+            File tempFile = File.createTempFile(prefix, suffix, context.getCacheDir());
+            tempFile.deleteOnExit();
+            try (InputStream is = context.getContentResolver().openInputStream(uri);
+                 OutputStream os = new FileOutputStream(tempFile)) {
+                if (is == null) return null;
+                byte[] buffer = new byte[8192];
+                int read;
+                while ((read = is.read(buffer)) != -1) {
+                    os.write(buffer, 0, read);
+                }
+                os.flush();
+            }
+            return tempFile.getAbsolutePath();
+        } catch (Exception e) {
+            e.printStackTrace();
+            return null;
+        }
+    }
+
+    public static boolean copyFileToUri(Context context, File sourceFile, Uri destUri) {
+        try (InputStream is = new java.io.FileInputStream(sourceFile);
+             OutputStream os = context.getContentResolver().openOutputStream(destUri)) {
+            if (os == null) return false;
+            byte[] buffer = new byte[8192];
+            int read;
+            while ((read = is.read(buffer)) != -1) {
+                os.write(buffer, 0, read);
+            }
+            os.flush();
+            return true;
+        } catch (Exception e) {
+            e.printStackTrace();
             return false;
         }
     }
@@ -128,6 +201,120 @@ public class DiskManager {
 
             @Override protected void onPostExecute(String err) {
                 if (err == null) cb.onSuccess(destPath);
+                else            cb.onError(err);
+            }
+        }.execute();
+    }
+
+    /**
+     * Convert a virtual disk image format asynchronously using qemu-img.
+     *
+     * @param context      Android Context
+     * @param sourceUri    Source Uri (file:// or content://)
+     * @param destUri      Destination Uri (file:// or content://)
+     * @param targetFormat Target format ("qcow2", "raw", "vmdk", "vdi")
+     * @param cb           Callback for result
+     */
+    public static void convertDiskAsync(
+            Context context, Uri sourceUri, Uri destUri, String targetFormat,
+            DiskConvertCallback cb) {
+
+        new AsyncTask<Void, String, String>() {
+            private String resolvedDestPath = null;
+
+            @Override protected void onPreExecute() {
+                cb.onProgress("Converting disk to " + targetFormat.toUpperCase() + "…");
+            }
+
+            @Override protected String doInBackground(Void... v) {
+                File tempSourceFile = null;
+                File tempDestFile = null;
+                try {
+                    // Resolve source path
+                    String srcPath = resolveUri(context, sourceUri);
+                    if (srcPath == null || !new File(srcPath).exists()) {
+                        publishProgress("Copying source content URI to temp file…");
+                        srcPath = copyUriToTempFile(context, sourceUri, "convert_src_", ".tmp");
+                        if (srcPath != null) {
+                            tempSourceFile = new File(srcPath);
+                        } else {
+                            return "Unable to access source disk image.";
+                        }
+                    }
+
+                    // Resolve dest path
+                    String dstPath = resolveUri(context, destUri);
+                    boolean directDest = false;
+                    if (dstPath != null) {
+                        File parent = new File(dstPath).getParentFile();
+                        if (parent != null && (parent.exists() || parent.mkdirs())) {
+                            directDest = true;
+                        }
+                    }
+
+                    if (!directDest) {
+                        tempDestFile = File.createTempFile("convert_dst_", "." + targetFormat, context.getCacheDir());
+                        tempDestFile.deleteOnExit();
+                        dstPath = tempDestFile.getAbsolutePath();
+                    }
+                    resolvedDestPath = (dstPath != null && directDest) ? dstPath : destUri.toString();
+
+                    String qemuImg = resolveQemuImg();
+                    List<String> cmd = new ArrayList<>();
+                    cmd.add(qemuImg);
+                    cmd.add("convert");
+                    cmd.add("-O"); cmd.add(targetFormat);
+                    cmd.add(srcPath);
+                    cmd.add(dstPath);
+
+                    publishProgress("Running: " + String.join(" ", cmd));
+
+                    ProcessBuilder pb = new ProcessBuilder(cmd);
+                    pb.redirectErrorStream(true);
+                    Process proc = pb.start();
+
+                    BufferedReader br = new BufferedReader(
+                        new InputStreamReader(proc.getInputStream()));
+                    StringBuilder out = new StringBuilder();
+                    String line;
+                    while ((line = br.readLine()) != null) {
+                        out.append(line).append("\n");
+                        publishProgress(line);
+                    }
+                    proc.waitFor();
+
+                    if (proc.exitValue() != 0) {
+                        return "qemu-img convert failed (exit code " + proc.exitValue() + "):\n" + out;
+                    }
+
+                    // If we converted to a temp dest file, copy back to destUri
+                    if (!directDest && tempDestFile != null) {
+                        publishProgress("Writing converted image to destination…");
+                        boolean copied = copyFileToUri(context, tempDestFile, destUri);
+                        if (!copied) {
+                            return "Failed to write converted disk image to destination URI.";
+                        }
+                    }
+
+                    return null; // success
+                } catch (Exception e) {
+                    return "Disk conversion error: " + e.getMessage();
+                } finally {
+                    if (tempSourceFile != null && tempSourceFile.exists()) {
+                        try { tempSourceFile.delete(); } catch (Exception ignored) {}
+                    }
+                    if (tempDestFile != null && tempDestFile.exists()) {
+                        try { tempDestFile.delete(); } catch (Exception ignored) {}
+                    }
+                }
+            }
+
+            @Override protected void onProgressUpdate(String... v) {
+                cb.onProgress(v[0]);
+            }
+
+            @Override protected void onPostExecute(String err) {
+                if (err == null) cb.onSuccess(resolvedDestPath);
                 else            cb.onError(err);
             }
         }.execute();

@@ -87,9 +87,6 @@ enum class TpmType { None, TIS, CRB };
 // SEV-SNP reset + TDX confidential VMs (requires matching hardware+KVM)
 enum class ConfidentialVM { None, SEV_SNP, TDX };
 
-// ── Per-VM binary / accel modes ───────────────────────────────────────
-enum class BinaryMode { Auto, Custom };
-
 // ── Misc data structures ──────────────────────────────────────────────
 struct PortForward  { std::string protocol; int host_port; int guest_port; };
 struct USBDevice    { std::string type; };
@@ -183,15 +180,33 @@ struct VMConfig {
     // QEMU 10.2: io_uring main loop (performance, Linux 5.1+)
     bool         io_uring_loop = false;
 
-    // Binary
-    BinaryMode  binary_mode   = BinaryMode::Auto;
-    std::string custom_binary;
-
     // Accelerator
     Accelerator accel      = Accelerator::TCG;
     TbSize      tb_size    = TbSize::MB256;
     bool        kvm_nested = false;
     bool        tcg_mttcg  = true;
+
+    // QEMU 11.0 (Aug 2026): ARM SME / SME2 TCG emulation + HVF acceleration
+    bool        arm_sme    = false;   // -cpu ...,sme=on  (Scalable Matrix Extension)
+    bool        arm_sme2   = false;   // -cpu ...,sme2=on (SME2)
+
+    // QEMU 11.0: RISC-V ISA extensions (Zilsd, Zclsd, ZALASR, Smpmpmt)
+    bool        riscv_zilsd   = false;
+    bool        riscv_zclsd   = false;
+    bool        riscv_zalasr  = false;
+    bool        riscv_smpmpmt = false;
+
+    // QEMU 11.0: PowerPC snapshot support for ppc devices
+    bool        ppc_snapshot_devs = false;
+
+    // QEMU 11.0: SEV-SNP reset support (KVM confidential VMs)
+    bool        sev_snp_reset = false;
+
+    // QEMU 11.0: virtio-gpu unique resolution per output (multi-head)
+    std::string gpu_head_resolutions;  // e.g. "1920x1080,2560x1440,1280x720"
+
+    // QEMU 11.0: Diamond Rapids / Sierra Forest-v2 CPU preset
+    std::string x86_cpu_preset;   // "DiamondRapids", "SierraForest-v2", "GraniteRapids-v1" etc.
 
     // QEMU 11 flags
     bool        snapshot_mode = false;

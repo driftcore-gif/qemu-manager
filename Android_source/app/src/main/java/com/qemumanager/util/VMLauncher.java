@@ -12,12 +12,12 @@ public class VMLauncher {
         void onError(String message);
     }
 
+    // Blind execution: no binary detection or validation up-front. The
+    // resolved name is run directly via PATH lookup (PATH is extended with
+    // common Termux/Android locations so execvp can find it). If the
+    // binary is missing, the process fails fast and RunLogActivity shows
+    // an install hint based on the captured output / exit code.
     public static void launch(VMConfig vm, LaunchCallback cb) {
-        if (vm.binaryMode == VMConfig.BinaryMode.Custom) {
-            String err = CommandBuilder.validateCustomBinary(vm.customBinary);
-            if (!err.isEmpty()) { cb.onError(err); return; }
-        }
-
         if (vm.saveScriptToFolder) {
             try { VMConfigIO.writeStartScript(vm); } catch (Exception ignored) {}
         }
@@ -33,6 +33,15 @@ public class VMLauncher {
                 ProcessBuilder pb = new ProcessBuilder(cmd);
                 pb.directory(new File(vm.vmDir));
                 pb.redirectErrorStream(true);
+
+                // Make sure common install locations are on PATH so a bare
+                // binary name (e.g. "qemu-system-x86_64") resolves without
+                // us ever touching the filesystem ourselves.
+                java.util.Map<String, String> env = pb.environment();
+                String existingPath = env.getOrDefault("PATH", "");
+                String extraPath = "/data/data/com.termux/files/usr/bin:/system/bin:/vendor/bin";
+                env.put("PATH", extraPath + (existingPath.isEmpty() ? "" : ":" + existingPath));
+
                 Process proc = pb.start();
                 cb.onSuccess(proc, 0);
             } catch (Exception e) {

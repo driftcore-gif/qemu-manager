@@ -543,8 +543,6 @@ public class VMWizardActivity extends AppCompatActivity {
 
         c.extraArgs = extraArgsEntry != null ? extraArgsEntry.getText().toString().trim() : "";
         c.saveScriptToFolder = saveScriptCheck != null && saveScriptCheck.isChecked();
-        c.binaryMode   = VMConfig.BinaryMode.Auto;
-        c.customBinary = "";
         return c;
     }
 

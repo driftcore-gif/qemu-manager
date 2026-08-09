@@ -7,6 +7,7 @@
 #include "storagemanager.h"
 #include "settings.h"
 #include "templates.h"
+#include "logmonitor.h"
 #include <glib.h>
 #include <dirent.h>
 #include <fstream>
@@ -709,15 +710,19 @@ void MainWindow::onStartVM() {
             std::string log_dir = vm.vm_dir + "/logs";
             g_mkdir_with_parents(log_dir.c_str(), 0755);
 
-            // Build the full QEMU command
+            // Build the full QEMU command — resolved blindly by arch, no
+            // filesystem detection. If the binary is missing, the process
+            // will fail and the LogMonitor window will surface a plain
+            // "install QEMU" hint.
             std::string qemu_cmd = CommandBuilder::buildCommand(vm);
+            std::string expected_bin = CommandBuilder::archToQemuBin(vm.arch, vm.mode);
 
             // Send directly to bash — log the command, then execute
             std::string log_file = log_dir + "/qemu.log";
             std::string pid_file = vm.vm_dir + "/vm.pid";
 
-            // Write launch command to log first
-            std::ofstream lf(log_file, std::ios::app);
+            // Truncate the log for this run, then write the launch command
+            std::ofstream lf(log_file, std::ios::trunc);
             if (lf) {
                 lf << "[QEMU Manager] Launching at " << vm.last_started << "\n";
                 lf << qemu_cmd << "\n\n";
@@ -743,6 +748,11 @@ void MainWindow::onStartVM() {
             strftime(buf, sizeof(buf), "%Y-%m-%d %H:%M", localtime(&t));
             vm.last_started = buf;
             saveVM(vm);
+
+            // Open a live run-log window for this VM
+            LogMonitor* mon = new LogMonitor(GTK_WINDOW(window), vm.name,
+                                              log_file, pid_file, expected_bin);
+            mon->show();
             break;
         }
     }

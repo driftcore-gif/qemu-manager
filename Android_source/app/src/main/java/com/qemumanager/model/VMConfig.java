@@ -50,7 +50,6 @@ public class VMConfig {
         MSHV    // QEMU 11: Microsoft Hyper-V
     }
 
-    public enum BinaryMode     { Auto, Custom }
     public enum IommuType      { None, Intel, SMMUv3, VirtIO_IOMMU }
     public enum TpmType        { None, TIS, CRB }
     public enum ConfidentialVM { None, SEV_SNP, TDX }
@@ -106,8 +105,6 @@ public class VMConfig {
     public NetworkMode net = NetworkMode.User;
 
     // Binary — always Auto for fixed arch; custom binary removed from UI
-    public BinaryMode binaryMode   = BinaryMode.Auto;
-    public String     customBinary = "";
 
     // Accelerator
     public Accelerator accel     = Accelerator.TCG;
@@ -170,8 +167,6 @@ public class VMConfig {
         o.put("virgl_enabled", virglEnabled);
         o.put("gpu_extra_outputs", gpuExtraOutputs);
         o.put("net_mode",    net.name());
-        o.put("binary_mode", binaryMode.name());
-        o.put("custom_binary", customBinary);
         o.put("accel",       accel.name());
         o.put("tcg_mttcg",   tcgMttcg);
         o.put("kvm_nested",  kvmNested);
@@ -222,8 +217,6 @@ public class VMConfig {
         c.virglEnabled  = o.optBoolean("virgl_enabled",false);
         c.gpuExtraOutputs = o.optString("gpu_extra_outputs","");
         try { c.net     = NetworkMode.valueOf(o.optString("net_mode","User")); } catch(Exception ignored){}
-        try { c.binaryMode = BinaryMode.valueOf(o.optString("binary_mode","Auto")); } catch(Exception ignored){}
-        c.customBinary  = o.optString("custom_binary","");
         try { c.accel   = Accelerator.valueOf(o.optString("accel","TCG")); }     catch(Exception ignored){}
         c.tcgMttcg      = o.optBoolean("tcg_mttcg",true);
         c.kvmNested     = o.optBoolean("kvm_nested",false);

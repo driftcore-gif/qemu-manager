@@ -49,43 +49,7 @@ std::string CommandBuilder::archToQemuBin(VMArch arch, VMMode mode) {
 }
 
 std::string CommandBuilder::resolveBinary(const VMConfig& vm) {
-    std::string name;
-    if (vm.binary_mode==BinaryMode::Custom && !vm.custom_binary.empty())
-        name = vm.custom_binary;
-    else
-        name = archToQemuBin(vm.arch, vm.mode);
-    for (const char* dir : {"/data/data/com.termux/files/usr/bin", "/usr/bin"}) {
-        std::string full = std::string(dir)+"/"+name;
-        if (access(full.c_str(), X_OK)==0) return full;
-    }
-    return "/usr/bin/"+name;
-}
-
-std::vector<std::string> CommandBuilder::listInstalledBinaries(VMMode mode) {
-    std::vector<std::string> out;
-    const char* prefix = (mode==VMMode::System)?"qemu-system-":"qemu-";
-    for (const char* dir : {"/usr/bin","/data/data/com.termux/files/usr/bin"}) {
-        DIR* d = opendir(dir); if(!d) continue;
-        struct dirent* e;
-        while((e=readdir(d))) {
-            std::string n = e->d_name;
-            if(n.rfind(prefix,0)==0) {
-                if(mode==VMMode::UserMode && n.rfind("qemu-system-",0)==0) continue;
-                if(std::find(out.begin(),out.end(),n)==out.end()) out.push_back(n);
-            }
-        }
-        closedir(d);
-    }
-    std::sort(out.begin(), out.end());
-    return out;
-}
-
-std::string CommandBuilder::validateCustomBinary(const std::string& name) {
-    if(name.empty())                              return "Binary name is empty.";
-    if(name.find(' ')!=std::string::npos)         return "Must not contain spaces.";
-    if(name.find('/')!=std::string::npos)         return "Must not contain slashes.";
-    if(name.rfind("qemu-",0)!=0)                  return "Must start with 'qemu-'.";
-    return "";
+    return archToQemuBin(vm.arch, vm.mode);
 }
 
 // ── Full QEMU 11 command builder ──────────────────────────────────────
@@ -157,6 +121,21 @@ std::vector<std::string> CommandBuilder::buildArgs(const VMConfig& vm) {
             cpu += ",cet=on";
         if(!vm.cpu_flags.empty())                   cpu += ","+vm.cpu_flags;
         if(!vm.cpu_migratable)                      cpu += ",migratable=off";
+        // QEMU 11.0: ARM SME / SME2 TCG emulation
+        if(vm.arm_sme  && (vm.arch==VMArch::aarch64||vm.arch==VMArch::arm))  cpu += ",sme=on";
+        if(vm.arm_sme2 && (vm.arch==VMArch::aarch64||vm.arch==VMArch::arm))  cpu += ",sme2=on";
+        // QEMU 11.0: x86 CPU preset (Diamond Rapids, Sierra Forest-v2, etc.)
+        if(!vm.x86_cpu_preset.empty() &&
+           (vm.arch==VMArch::x86_64||vm.arch==VMArch::i386))
+            cpu = vm.x86_cpu_preset + (cpu.find(',')!=std::string::npos
+                    ? cpu.substr(cpu.find(',')) : "");
+        // QEMU 11.0: RISC-V ISA extensions
+        if(vm.arch==VMArch::riscv64||vm.arch==VMArch::riscv32) {
+            if(vm.riscv_zilsd)   cpu += ",zilsd=true";
+            if(vm.riscv_zclsd)   cpu += ",zclsd=true";
+            if(vm.riscv_zalasr)  cpu += ",zalasr=true";
+            if(vm.riscv_smpmpmt) cpu += ",smpmpmt=true";
+        }
         flag("-cpu", cpu);
     }
     flag("-smp", std::to_string(vm.sockets*vm.cores*vm.threads)

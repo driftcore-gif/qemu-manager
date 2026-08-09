@@ -422,85 +422,6 @@ GtkWidget* VMWizard::buildHardwarePage() {
     gtk_widget_set_margin_top(g,16);
     int r=0;
 
-    // ---- QEMU Binary ----
-    GtkWidget* bin_sect = gtk_label_new("QEMU Binary");
-    PangoAttrList* al = pango_attr_list_new();
-    pango_attr_list_insert(al, pango_attr_weight_new(PANGO_WEIGHT_BOLD));
-    gtk_label_set_attributes(GTK_LABEL(bin_sect), al);
-    pango_attr_list_unref(al);
-    gtk_label_set_xalign(GTK_LABEL(bin_sect),0);
-    gtk_grid_attach(GTK_GRID(g),bin_sect,0,r,2,1); r++;
-
-    // Scan /usr/bin for installed qemu-system-* binaries
-    auto bins = CommandBuilder::listInstalledBinaries(VMMode::System);
-    // Build string list for dropdown: detected binaries + "Custom…"
-    std::vector<const char*> bin_list;
-    std::vector<std::string> bin_strings = bins;
-    bin_strings.push_back("Custom…");
-    for (const auto& b : bin_strings) bin_list.push_back(b.c_str());
-    bin_list.push_back(nullptr);
-
-    bin_combo = gtk_drop_down_new_from_strings(bin_list.data());
-    gtk_widget_set_hexpand(bin_combo,TRUE);
-    gtk_grid_attach(GTK_GRID(g),make_label("Binary:"),0,r,1,1);
-    gtk_grid_attach(GTK_GRID(g),bin_combo,1,r,1,1); r++;
-
-    // Custom binary text box — shown only when "Custom…" is selected
-    custom_bin_entry = gtk_entry_new();
-    gtk_entry_set_placeholder_text(GTK_ENTRY(custom_bin_entry),
-        "e.g.  qemu-system-mycpu   (name only, resolved in /usr/bin/)");
-    gtk_widget_set_sensitive(custom_bin_entry, FALSE);
-    gtk_widget_set_hexpand(custom_bin_entry, TRUE);
-    gtk_grid_attach(GTK_GRID(g),make_label("Custom Name:"),0,r,1,1);
-    gtk_grid_attach(GTK_GRID(g),custom_bin_entry,1,r,1,1); r++;
-
-    // Validation hint label
-    bin_hint_lbl = gtk_label_new("");
-    gtk_widget_add_css_class(bin_hint_lbl,"dim-label");
-    gtk_label_set_xalign(GTK_LABEL(bin_hint_lbl),0);
-    gtk_grid_attach(GTK_GRID(g),bin_hint_lbl,0,r,2,1); r++;
-
-    // Toggle custom entry visibility
-    // Store bins count so we know which index is "Custom…"
-    g_object_set_data(G_OBJECT(bin_combo), "custom_idx",
-        GINT_TO_POINTER((int)bins.size()));
-    g_object_set_data(G_OBJECT(bin_combo), "entry", custom_bin_entry);
-    g_object_set_data(G_OBJECT(bin_combo), "hint",  bin_hint_lbl);
-    g_signal_connect(bin_combo,"notify::selected",
-        G_CALLBACK(+[](GtkDropDown* dd, GParamSpec*, gpointer){
-            int custom_idx = GPOINTER_TO_INT(g_object_get_data(G_OBJECT(dd),"custom_idx"));
-            GtkWidget* ent = (GtkWidget*)g_object_get_data(G_OBJECT(dd),"entry");
-            bool is_custom = (int)gtk_drop_down_get_selected(dd) == custom_idx;
-            gtk_widget_set_sensitive(ent, is_custom);
-            if (!is_custom) {
-                GtkWidget* hint = (GtkWidget*)g_object_get_data(G_OBJECT(dd),"hint");
-                gtk_label_set_text(GTK_LABEL(hint),"");
-            }
-        }), nullptr);
-
-    // Validate on typing — only binary name allowed
-    g_signal_connect(custom_bin_entry,"changed",
-        G_CALLBACK(+[](GtkEditable* ed, gpointer ud){
-            GtkLabel* hint = GTK_LABEL(ud);
-            const char* txt = gtk_editable_get_text(ed);
-            std::string err = CommandBuilder::validateCustomBinary(
-                txt ? txt : "");
-            // Don't check file existence while typing
-            if (err == ("Binary '/usr/bin/" + std::string(txt?txt:"") + "' not found."))
-                err = "";
-            // Block spaces immediately
-            std::string s = txt ? txt : "";
-            if (s.find(' ')!=std::string::npos || s.find('/')!=std::string::npos) {
-                gtk_label_set_text(hint,"⚠ Binary name only — no spaces or paths.");
-                gtk_widget_add_css_class(GTK_WIDGET(ed),"error");
-            } else {
-                gtk_label_set_text(hint, err.empty() ? "" : ("⚠ " + err).c_str());
-                gtk_widget_remove_css_class(GTK_WIDGET(ed),"error");
-            }
-        }), bin_hint_lbl);
-
-    gtk_grid_attach(GTK_GRID(g),gtk_separator_new(GTK_ORIENTATION_HORIZONTAL),0,r,2,1); r++;
-
     // ---- Accelerator ----
     GtkWidget* acc_sect = gtk_label_new("Accelerator");
     PangoAttrList* al2 = pango_attr_list_new();
@@ -511,8 +432,8 @@ GtkWidget* VMWizard::buildHardwarePage() {
     gtk_grid_attach(GTK_GRID(g),acc_sect,0,r,2,1); r++;
 
     static const char* accel_names[] = {
-            "TCG  (software emulation — works everywhere)",
-            "KVM  (hardware acceleration — requires /dev/kvm)",
+            "TCG  (software emulation \u2014 works everywhere)",
+            "KVM  (hardware acceleration \u2014 requires /dev/kvm)",
             "KVM + LBT  (LoongArch silicon binary translation)",
             nullptr
         };
@@ -521,7 +442,7 @@ GtkWidget* VMWizard::buildHardwarePage() {
     gtk_grid_attach(GTK_GRID(g),make_label("Accelerator:"),0,r,1,1);
     gtk_grid_attach(GTK_GRID(g),accel_combo,1,r,1,1); r++;
 
-    // LoongArch LBT note — shown when KVM+LBT selected
+    // LoongArch LBT note \u2014 shown when KVM+LBT selected
     lbt_note_lbl = gtk_label_new(
         "LoongArch LBT: silicon-level x86/MIPS/ARM translation.\n"
         "Requires LoongArch hardware with LBT extension + KVM enabled kernel.");
@@ -569,8 +490,11 @@ GtkWidget* VMWizard::buildHardwarePage() {
     gtk_grid_attach(GTK_GRID(g),save_script_check,0,r,2,1); r++;
 
     GtkWidget* sh_hint = gtk_label_new(
-        "Unchecked: QEMU launched directly in RAM — no file written.\n"
-        "Checked: start.sh also written to VM folder for manual reuse.");
+        "Unchecked: QEMU launched directly in RAM \u2014 no file written.\n"
+        "Checked: start.sh also written to VM folder for manual reuse.\n"
+        "The binary for the selected architecture is run directly (blind\n"
+        "execution) \u2014 if it is missing, the Run Log window will tell you\n"
+        "which package to install.");
     gtk_label_set_wrap(GTK_LABEL(sh_hint),TRUE);
     gtk_widget_add_css_class(sh_hint,"dim-label");
     gtk_label_set_xalign(GTK_LABEL(sh_hint),0);
@@ -651,17 +575,6 @@ VMConfig VMWizard::collectConfig() {
     c.gpu     = (GPUType)gtk_drop_down_get_selected(GTK_DROP_DOWN(gpu_combo));
     c.audio   = (AudioType)gtk_drop_down_get_selected(GTK_DROP_DOWN(audio_combo));
     c.net_mode = (NetworkMode)gtk_drop_down_get_selected(GTK_DROP_DOWN(net_combo));
-
-    // Binary
-    int custom_idx = GPOINTER_TO_INT(g_object_get_data(G_OBJECT(bin_combo),"custom_idx"));
-    int sel = (int)gtk_drop_down_get_selected(GTK_DROP_DOWN(bin_combo));
-    if (sel == custom_idx) {
-        c.binary_mode   = BinaryMode::Custom;
-        c.custom_binary = gtk_editable_get_text(GTK_EDITABLE(custom_bin_entry));
-    } else {
-        c.binary_mode   = BinaryMode::Auto;
-        c.custom_binary = "";
-    }
 
     // Accelerator
     const Accelerator ac[]={Accelerator::TCG,Accelerator::KVM,Accelerator::KVM_LBT};
@@ -756,20 +669,6 @@ void VMWizard::onCreateClicked(GtkButton*,gpointer d) {
         compat_show_alert(GTK_WINDOW(s->dialog), "Please enter a VM name.");
 #endif
         return;
-    }
-    // Validate custom binary before creating
-    if (c.binary_mode==BinaryMode::Custom) {
-        std::string err = CommandBuilder::validateCustomBinary(c.custom_binary);
-        if (!err.empty()) {
-#if GTK_CHECK_VERSION(4, 10, 0)
-            GtkAlertDialog* ad = gtk_alert_dialog_new(("Binary error: "+err).c_str());
-            gtk_alert_dialog_show(ad,GTK_WINDOW(s->dialog));
-            g_object_unref(ad);
-#else
-            compat_show_alert(GTK_WINDOW(s->dialog), ("Binary error: "+err).c_str());
-#endif
-            return;
-        }
     }
     g_mkdir_with_parents(c.vm_dir.c_str(),0755);
     g_mkdir_with_parents((c.vm_dir+"/snapshots").c_str(),0755);
