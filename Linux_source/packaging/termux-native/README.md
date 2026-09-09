@@ -30,9 +30,24 @@ meson setup builddir-termux-aarch64 --cross-file packaging/termux-native/cross-t
 ninja -C builddir-termux-aarch64
 DESTDIR=./stage ninja -C builddir-termux-aarch64 install
 
-# 5. Package as a .deb Termux can install with dpkg -i
-#    (control file: Depends: gtk4, libc++; Architecture: aarch64)
+# 5. Package as a plain tarball (NOT a .deb — no dpkg involved)
+tar czf qemu-manager-termux-native-aarch64.tar.gz \
+  -C stage/data/data/com.termux/files/usr \
+  bin/qemu-manager share/icons/hicolor/256x256/apps/qemu-manager.png
 ```
+
+## Installing it on-device
+
+We deliberately do **not** ship this as a `.deb`. Distribution is a plain
+tarball plus `install-termux-native.sh`, which asks the user which
+architecture they're on and copies the binary + icon into `$PREFIX` by hand
+(`cp` + `chmod`) — no `dpkg`, no package database, no postinst scripts.
+
+```bash
+curl -LO https://github.com/driftcore-gif/qemu-manager/releases/latest/download/install-termux-native.sh
+bash install-termux-native.sh
+```
+
 
 ## Why this works
 

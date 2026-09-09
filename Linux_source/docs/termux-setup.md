@@ -9,11 +9,11 @@ filesystem. There is no PRoot, no Debian chroot, and no translation/emulation la
 just a normal native ELF binary linked against `/data/data/com.termux/files/usr/lib`.
 
 ```bash
-pkg install x11-repo -y
-pkg install gtk4 libc++ -y
-
-wget https://github.com/driftcore-gif/qemu-manager/releases/latest/download/qemu-manager-termux-native-10.0-1_aarch64.deb
-dpkg -i qemu-manager-termux-native-10.0-1_aarch64.deb
+curl -LO https://github.com/driftcore-gif/qemu-manager/releases/latest/download/install-termux-native.sh
+bash install-termux-native.sh
+# You'll be asked which architecture you're on (aarch64/arm/x86_64/i686) —
+# the script downloads the matching tarball and installs it by hand
+# (plain cp + chmod into $PREFIX). No dpkg, no .deb package, no proot.
 
 pkg install qemu-system-x86-64-headless -y   # or whichever qemu-system-* you need
 
@@ -48,12 +48,17 @@ using this recipe:
    `ninja`, then set `install_rpath = '/data/data/com.termux/files/usr/lib'` in
    `meson.build` so the shipped binary only looks for libraries in Termux's real
    library path (not the build host's temporary sysroot).
-5. Package the resulting binary as a normal `dpkg-deb` archive with
-   `Depends: gtk4, libc++` so `apt`/`dpkg` on-device pull in the runtime deps.
+5. Package the resulting binary + icon as a plain `.tar.gz` — deliberately
+   **not** a `.deb`. `install-termux-native.sh` asks the user which
+   architecture to install and copies the files into `$PREFIX` by hand
+   (`cp` + `chmod`), with `pkg install gtk4 libc++` for the runtime deps.
+   No `dpkg`, no package database entries, no postinst scripts.
 
-This is the same fundamental approach Termux's own package maintainers use
-(`termux-packages` build system) — just done by hand against Termux's binary
-repo instead of rebuilding every dependency from source.
+The cross-compilation trick (steps 1-4) is the same fundamental approach
+Termux's own package maintainers use (`termux-packages` build system) — just
+done by hand against Termux's binary repo instead of rebuilding every
+dependency from source. Only the final distribution step (5) differs: a
+manual-install script instead of a package manager.
 
 ## Method 1: Build from source natively in Termux
 
